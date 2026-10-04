@@ -118,6 +118,16 @@ CREATE TABLE IF NOT EXISTS voucher_codes (
   order_id INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS account_stocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  email TEXT NOT NULL DEFAULT '',
+  password TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  used INTEGER NOT NULL DEFAULT 0,
+  order_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS banners (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   image_url TEXT NOT NULL,
@@ -1269,6 +1279,34 @@ app.delete('/api/admin/products/:id/codes/:cid', auth, requireAdmin, (req, res) 
   res.json({ ok: true });
 });
 
+// ---- Stok akun otomatis (admin) — untuk produk kategori akun ----
+// Format input: satu akun per baris "email | password | catatan(opsional)"
+app.get('/api/admin/products/:id/accounts', auth, requireAdmin, (req, res) => {
+  const rows = db.prepare('SELECT id, email, password, notes, used, order_id FROM account_stocks WHERE product_id = ? ORDER BY id').all(req.params.id);
+  res.json({ accounts: rows, available: rows.filter(r => !r.used).length });
+});
+app.post('/api/admin/products/:id/accounts', auth, requireAdmin, (req, res) => {
+  const lines = String((req.body || {}).accounts || '').split(/[\n]+/).map(s => s.trim()).filter(Boolean);
+  if (!lines.length) return res.status(400).json({ error: 'Tidak ada akun' });
+  const ins = db.prepare('INSERT INTO account_stocks (product_id, email, password, notes) VALUES (?,?,?,?)');
+  const tx = db.transaction(() => {
+    for (const ln of lines.slice(0, 500)) {
+      const [email = '', password = '', ...rest] = ln.split('|').map(s => s.trim());
+      if (!email || !password) continue;
+      ins.run(req.params.id, email.slice(0, 200), password.slice(0, 200), rest.join('|').slice(0, 500));
+    }
+  });
+  tx();
+  syncCodeStock(req.params.id);
+  const n = db.prepare('SELECT COUNT(*) c FROM account_stocks WHERE product_id = ? AND used = 0').get(req.params.id).c;
+  res.json({ ok: true, available: n });
+});
+app.delete('/api/admin/products/:id/accounts/:aid', auth, requireAdmin, (req, res) => {
+  db.prepare('DELETE FROM account_stocks WHERE id = ? AND product_id = ? AND used = 0').run(req.params.aid, req.params.id);
+  syncCodeStock(req.params.id);
+  res.json({ ok: true });
+});
+
 // ---- Varian produk ----
 app.get('/api/products/:id/variants', (req, res) => {
   try {
@@ -1297,8 +1335,8 @@ app.delete('/api/products/:id/variants/:vid', auth, requireAdmin, (req, res) => 
   res.json({ ok: true });
 });
 
-// Coba kirim otomatis: jika SEMUA item punya kode otomatis cukup (non-topup),
-// claim kode + return array delivery. Return null jika butuh input manual.
+// Coba kirim otomatis: jika SEMUA item punya stok pool otomatis cukup (akun/kode, non-topup),
+// claim + return array delivery. Return null jika butuh input manual.
 function tryAutoDeliver(orderId) {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
   if (!order) return null;
@@ -1309,18 +1347,26 @@ function tryAutoDeliver(orderId) {
   const cats = items.map(it => (catStmt.get(it.product_id) || {}).category || 'voucher');
   if (cats.some(c => c === 'topup')) return null;
   for (const it of items) {
-    const avail = db.prepare('SELECT COUNT(*) c FROM voucher_codes WHERE product_id = ? AND used = 0').get(it.product_id).c;
-    if (avail < it.qty) return null;
+    if (poolAvailable(it.product_id) < it.qty) return null;
   }
   const delivery = [];
   const tx = db.transaction(() => {
-    const upd = db.prepare('UPDATE voucher_codes SET used = 1, order_id = ? WHERE id = ?');
+    const updCode = db.prepare('UPDATE voucher_codes SET used = 1, order_id = ? WHERE id = ?');
+    const updAcc = db.prepare('UPDATE account_stocks SET used = 1, order_id = ? WHERE id = ?');
     items.forEach((it, i) => {
-      const rows = db.prepare('SELECT id, code FROM voucher_codes WHERE product_id = ? AND used = 0 ORDER BY id LIMIT ?')
-        .all(it.product_id, it.qty);
-      for (const r of rows) upd.run(orderId, r.id);
-      delivery.push({ product_id: it.product_id, name: it.name, category: cats[i], qty: it.qty,
-        data: rows.map(r => r.code).join('\n'), auto: true });
+      let dataStr;
+      if (hasAccountStock(it.product_id)) {
+        const rows = db.prepare('SELECT id, email, password, notes FROM account_stocks WHERE product_id = ? AND used = 0 ORDER BY id LIMIT ?')
+          .all(it.product_id, it.qty);
+        for (const r of rows) updAcc.run(orderId, r.id);
+        dataStr = rows.map(r => `Email: ${r.email}\nPassword: ${r.password}` + (r.notes ? `\nCatatan: ${r.notes}` : '')).join('\n\n');
+      } else {
+        const rows = db.prepare('SELECT id, code FROM voucher_codes WHERE product_id = ? AND used = 0 ORDER BY id LIMIT ?')
+          .all(it.product_id, it.qty);
+        for (const r of rows) updCode.run(orderId, r.id);
+        dataStr = rows.map(r => r.code).join('\n');
+      }
+      delivery.push({ product_id: it.product_id, name: it.name, category: cats[i], qty: it.qty, data: dataStr, auto: true });
     });
   });
   tx();
@@ -1340,14 +1386,44 @@ function claimVoucherCodes(productId, orderId, qty) {
   return codes;
 }
 
-// Sinkron stok produk = kode belum terpakai - qty yg dipesan (pending/proses).
-// Hanya untuk produk yg punya stok kode; produk lain pakai stok manual.
+// Sinkron stok produk = stok pool otomatis (kode voucher + akun) - qty yg dipesan (pending/proses).
+// Hanya untuk produk yg punya pool; produk lain pakai stok manual.
 function hasVoucherCodes(productId) {
   return db.prepare('SELECT COUNT(*) c FROM voucher_codes WHERE product_id = ?').get(productId).c > 0;
 }
+function hasAccountStock(productId) {
+  return db.prepare('SELECT COUNT(*) c FROM account_stocks WHERE product_id = ?').get(productId).c > 0;
+}
+function hasAutoPool(productId) { return hasVoucherCodes(productId) || hasAccountStock(productId); }
+function poolAvailable(productId) {
+  const codes = db.prepare('SELECT COUNT(*) c FROM voucher_codes WHERE product_id = ? AND used = 0').get(productId).c;
+  const accs = db.prepare('SELECT COUNT(*) c FROM account_stocks WHERE product_id = ? AND used = 0').get(productId).c;
+  return codes + accs;
+}
+// Ambil N akun otomatis untuk order (dipakai saat delivery) — return array string atau null
+function claimAccounts(productId, orderId, qty) {
+  const rows = db.prepare('SELECT id, email, password, notes FROM account_stocks WHERE product_id = ? AND used = 0 ORDER BY id LIMIT ?').all(productId, qty);
+  if (rows.length < qty) return null;
+  const upd = db.prepare('UPDATE account_stocks SET used = 1, order_id = ? WHERE id = ?');
+  const tx = db.transaction(() => { for (const r of rows) upd.run(orderId, r.id); });
+  tx();
+  syncCodeStock(productId);
+  return rows.map(r => `Email: ${r.email}\nPassword: ${r.password}` + (r.notes ? `\nCatatan: ${r.notes}` : ''));
+}
+// Klaim otomatis terpadu: akun dulu, lalu kode voucher. Return {data, auto:true} atau null.
+function claimAutoStock(productId, orderId, qty) {
+  if (hasAccountStock(productId)) {
+    const accs = claimAccounts(productId, orderId, qty);
+    if (accs) return { data: accs.join('\n\n'), auto: true };
+    return null;
+  }
+  const codes = claimVoucherCodes(productId, orderId, qty);
+  if (codes) return { data: codes.join('\n'), auto: true };
+  return null;
+}
 function syncCodeStock(productId) {
-  if (!hasVoucherCodes(productId)) return;
-  const unused = db.prepare('SELECT COUNT(*) c FROM voucher_codes WHERE product_id = ? AND used = 0').get(productId).c;
+  if (!hasAutoPool(productId)) return;
+  const unused = poolAvailable(productId);
   const reserved = db.prepare(`
     SELECT COALESCE(SUM(CAST(json_extract(j.value, '$.qty') AS INTEGER)), 0) r
     FROM orders o, json_each(o.items_json) j
@@ -1747,21 +1823,25 @@ app.patch('/api/orders/:id/status', auth, requireAdmin, (req, res) => {
     const fromStatus = order.status;
     let items = [];
     try { items = JSON.parse(order.items_json); } catch {}
-    // 1. Kembalikan kode otomatis yg sudah di-claim
+    // 1. Kembalikan stok otomatis yg sudah di-claim (kode voucher + akun)
     const affected = db.prepare('SELECT DISTINCT product_id FROM voucher_codes WHERE order_id = ?').all(order.id).map(r => r.product_id);
+    const affectedAccs = db.prepare('SELECT DISTINCT product_id FROM account_stocks WHERE order_id = ?').all(order.id).map(r => r.product_id);
     if (affected.length) {
       db.prepare('UPDATE voucher_codes SET used = 0, order_id = NULL WHERE order_id = ?').run(order.id);
     }
-    // 2. Kembalikan stok produk non-kode (kecuali sudah delivery = barang sudah dikirim)
+    if (affectedAccs.length) {
+      db.prepare('UPDATE account_stocks SET used = 0, order_id = NULL WHERE order_id = ?').run(order.id);
+    }
+    // 2. Kembalikan stok produk non-pool (kecuali sudah delivery = barang sudah dikirim)
     if (['pending', 'proses'].includes(fromStatus)) {
       for (const it of items) {
         if (it.variant_id) db.prepare('UPDATE product_variants SET stock = stock + ? WHERE id = ?').run(it.qty, it.variant_id);
-        else if (!hasVoucherCodes(it.product_id))
+        else if (!hasAutoPool(it.product_id))
           db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(it.qty, it.product_id);
       }
     }
-    // 3. Sync stok produk berkode
-    const pids = [...new Set([...affected, ...items.filter(i => hasVoucherCodes(i.product_id)).map(i => i.product_id)])];
+    // 3. Sync stok produk ber-pool otomatis
+    const pids = [...new Set([...affected, ...affectedAccs, ...items.filter(i => hasAutoPool(i.product_id)).map(i => i.product_id)])];
     for (const pid of pids) syncCodeStock(pid);
   }
   const finalOrder = attachItems(db.prepare('SELECT * FROM orders WHERE id = ?').get(order.id));
@@ -1793,13 +1873,15 @@ app.post('/api/orders/:id/cancel', auth, (req, res) => {
   let items = [];
   try { items = JSON.parse(order.items_json); } catch {}
   const affected = db.prepare('SELECT DISTINCT product_id FROM voucher_codes WHERE order_id = ?').all(order.id).map(r => r.product_id);
+  const affectedAccs = db.prepare('SELECT DISTINCT product_id FROM account_stocks WHERE order_id = ?').all(order.id).map(r => r.product_id);
   if (affected.length) db.prepare('UPDATE voucher_codes SET used = 0, order_id = NULL WHERE order_id = ?').run(order.id);
+  if (affectedAccs.length) db.prepare('UPDATE account_stocks SET used = 0, order_id = NULL WHERE order_id = ?').run(order.id);
   for (const it of items) {
     if (it.variant_id) db.prepare('UPDATE product_variants SET stock = stock + ? WHERE id = ?').run(it.qty, it.variant_id);
-    else if (!hasVoucherCodes(it.product_id))
+    else if (!hasAutoPool(it.product_id))
       db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?').run(it.qty, it.product_id);
   }
-  const pids = [...new Set([...affected, ...items.filter(i => hasVoucherCodes(i.product_id)).map(i => i.product_id)])];
+  const pids = [...new Set([...affected, ...affectedAccs, ...items.filter(i => hasAutoPool(i.product_id)).map(i => i.product_id)])];
   for (const pid of pids) syncCodeStock(pid);
   db.prepare(`UPDATE orders SET status = 'dibatalkan' WHERE id = ?`).run(order.id);
   purgeProof(order);
@@ -1847,11 +1929,11 @@ app.post('/api/orders/:id/deliver', auth, requireAdmin, async (req, res) => {
       delivery.push({ product_id: it.product_id, name: it.name, category: cat, qty: it.qty,
         proof_path: '/uploads/' + fname, trx_id: trx.slice(0, 100) });
     } else {
-      // Coba kode otomatis dulu (stok kode voucher)
-      const autoCodes = claimVoucherCodes(it.product_id, order.id, it.qty);
-      if (autoCodes) {
+      // Coba stok otomatis dulu (akun / kode voucher)
+      const claimed = claimAutoStock(it.product_id, order.id, it.qty);
+      if (claimed) {
         delivery.push({ product_id: it.product_id, name: it.name, category: cat, qty: it.qty,
-          data: autoCodes.join('\n'), auto: true });
+          data: claimed.data, auto: true });
       } else {
         const data = String(parsed.fields[`data_${it.product_id}`] || '').trim();
         if (!data) return res.status(400).json({ error: `Data pengiriman wajib diisi untuk "${it.name}"` });

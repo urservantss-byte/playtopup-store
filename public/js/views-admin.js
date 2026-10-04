@@ -101,6 +101,7 @@ async function admProductForm(id) {
     <div class="field"><label>Image URL</label><input id="ap-img" value="${esc(p.image_url || '')}" placeholder="/img/ml.webp"></div>
     <button class="btn block purple" onclick="admSaveProduct(${id || 0})">Save</button>
     ${id ? `<div style="height:8px"></div><button class="btn block line" onclick="admProductVariants(${id})">Manage Variants (denominations)</button>
+    <div style="height:8px"></div><button class="btn block line" onclick="admProductAccounts(${id})">👤 Kelola Stok Akun</button>
     <div style="height:8px"></div><button class="btn block line" style="color:#b91c1c" onclick="admDelProduct(${id})">Delete Product</button>` : ''}`);
 }
 async function admSaveProduct(id) {
@@ -153,6 +154,37 @@ async function admAddVariant(pid) {
 }
 async function admDelVariant(pid, vid) {
   try { await api.del(`/api/products/${pid}/variants/${vid}`); admProductVariants(pid); }
+  catch (e) { toast(e.message, false); }
+}
+
+/* ---- Stok akun otomatis (mirip Toko-Game): format "email | password | catatan" per baris ---- */
+async function admProductAccounts(pid) {
+  try {
+    const d = await api.get(`/api/admin/products/${pid}/accounts`);
+    const accs = d.accounts || [];
+    openModal(`<button class="mclose" onclick="closeModal()">✕</button>
+      <h3 style="margin-top:0">👤 Stok Akun</h3>
+      <div class="muted" style="font-size:12.5px;font-weight:600;margin-bottom:10px">Tersedia: <b style="color:var(--green)">${d.available || 0}</b> akun • Saat pesanan di-delivery, akun otomatis dikirim ke pembeli (FIFO).</div>
+      <div style="max-height:220px;overflow:auto;margin-bottom:10px">
+      ${accs.map((a) => `<div class="row" style="margin-bottom:8px"><span class="grow" style="font-weight:700;font-size:13px">${esc(a.email)} ${a.used ? `<span class="chip">order #${a.order_id}</span>` : '<span class="chip" style="background:#dcfce7;color:#166534">ready</span>'}${a.notes ? `<div class="muted" style="font-weight:600">${esc(a.notes)}</div>` : ''}</span>${a.used ? '' : `<button class="btn sm line" style="color:#b91c1c" onclick="admDelAccount(${pid},${a.id})">✕</button>`}</div>`).join('') || '<div class="muted">Belum ada akun.</div>'}
+      </div>
+      <div class="divider"></div>
+      <div class="field"><label>Tambah akun (satu per baris: email | password | catatan)</label>
+      <textarea id="aa-bulk" rows="4" style="border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit" placeholder="user1@mail.com | pass123 | rank epic&#10;user2@mail.com | pass456"></textarea></div>
+      <button class="btn block purple" onclick="admAddAccounts(${pid})">+ Tambah Akun</button>`);
+  } catch (e) { toast(e.message, false); }
+}
+async function admAddAccounts(pid) {
+  const v = document.getElementById('aa-bulk').value.trim();
+  if (!v) { toast('Isi dulu daftar akun', false); return; }
+  try {
+    const d = await api.post(`/api/admin/products/${pid}/accounts`, { accounts: v });
+    toast(`Ditambahkan. Tersedia: ${d.available}`, true);
+    admProductAccounts(pid);
+  } catch (e) { toast(e.message, false); }
+}
+async function admDelAccount(pid, aid) {
+  try { await api.del(`/api/admin/products/${pid}/accounts/${aid}`); admProductAccounts(pid); }
   catch (e) { toast(e.message, false); }
 }
 

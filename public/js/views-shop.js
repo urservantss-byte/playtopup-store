@@ -195,8 +195,19 @@ async function vOrders() {
   } catch { view.innerHTML = `<div class="empty">Failed to load orders.</div>`; }
 }
 
-async function vOrder(id) {
-  const view = document.getElementById('view');
+/* Render data pengiriman: tiap item dengan data akun/kode dalam blok monospace */
+function renderDeliveryItems(dd) {
+  let arr = [];
+  try { arr = typeof dd === 'string' ? JSON.parse(dd) : dd; } catch { return `<div>${esc(String(dd))}</div>`; }
+  if (!Array.isArray(arr) || !arr.length) return '';
+  return arr.map((d) => `
+    <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">
+      <div style="font-weight:800;font-size:13.5px">${esc(d.name || '')} × ${d.qty || 1} ${d.auto ? '<span class="chip" style="background:#dcfce7;color:#166534">otomatis</span>' : ''}</div>
+      ${d.data ? `<pre style="margin:8px 0 0;padding:10px;border-radius:10px;background:rgba(0,0,0,.06);font-size:13px;font-weight:700;white-space:pre-wrap;word-break:break-all">${esc(d.data)}</pre>` : ''}
+      ${d.trx_id ? `<div class="muted" style="font-size:12.5px;font-weight:700;margin-top:6px">TRX ID: ${esc(d.trx_id)}</div>` : ''}
+    </div>`).join('');
+}
+async function vOrder(id) {  const view = document.getElementById('view');
   view.innerHTML = `<div class="skel" style="height:200px"></div>`;
   let d;
   try { d = await api.get('/api/orders/' + id); }
@@ -217,7 +228,7 @@ async function vOrder(id) {
       <div class="divider"></div>
       <div class="row"><span class="grow" style="font-weight:700">Total</span><b class="price" style="font-size:20px">${rp(o.total)}</b></div>
       <div class="muted" style="font-size:13px;font-weight:600;margin-top:6px">Paid via: ${esc(o.payment_method)}</div>
-      ${o.delivery_data ? `<div class="announce" style="margin:10px 0 0">🎁 <b>Delivery:</b> ${esc(typeof o.delivery_data === 'string' ? o.delivery_data : JSON.stringify(o.delivery_data))}</div>` : ''}
+      ${o.delivery_data ? `<div class="announce" style="margin:10px 0 0">🎁 <b>Data Pengiriman:</b>${renderDeliveryItems(o.delivery_data)}</div>` : ''}
     </div>
     <div class="card"><div style="font-weight:900;margin-bottom:10px">Tracking</div>
       ${o.status === 'dibatalkan' ? `<div class="chip" style="background:#fee2e2;color:#b91c1c">Order cancelled</div>` :
