@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.0.0",
+    "compression": "^1.8.2",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.13",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5"
+  },
+  "description": "PlayTopUp Store: toko top up game instan full-stack",
+  "main": "server.js",
+  "name": "playtopup-store",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "version": "1.0.0"
+}
