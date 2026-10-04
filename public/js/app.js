@@ -4,7 +4,12 @@
    Desktop (>=1024px) -> views-desktop.js + desktop.css (body.is-desktop).
    Mobile -> desain app-shell seperti sekarang. */
 const mqDesktop = window.matchMedia('(min-width: 1024px)');
-function isDesktop() { return mqDesktop.matches; }
+function isDesktopUA() {
+  // Chrome HP mode "Situs desktop" mengirim UA desktop (tanpa token Android/iPhone/Mobile)
+  // walau viewport tetap sempit — anggap sebagai desktop sesuai permintaan user.
+  return !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
+function isDesktop() { return mqDesktop.matches || (window.innerWidth >= 768 && isDesktopUA()); }
 function applyMode() {
   document.body.classList.toggle('is-desktop', isDesktop());
 }
