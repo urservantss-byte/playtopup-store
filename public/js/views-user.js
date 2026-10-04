@@ -35,6 +35,7 @@ async function doAuth(reg) {
     }
     store.setSession(d.token, d.user);
     await loadWishlist();
+    await refreshUnread();
     toast('Welcome back!', true);
     const after = sessionStorage.getItem('ptu_after_login');
     sessionStorage.removeItem('ptu_after_login');
@@ -58,6 +59,7 @@ function vProfile() {
         <a class="menu-item" href="#/orders"><span class="mi">📦</span>My Orders<span class="arr">›</span></a>
         <a class="menu-item" href="#/wishlist"><span class="mi">❤️</span>Wishlist<span class="arr">›</span></a>
         <a class="menu-item" href="#/tickets"><span class="mi">💬</span>Support Tickets<span class="arr">›</span></a>
+        <a class="menu-item" href="#/faq"><span class="mi">❓</span>FAQ<span class="arr">›</span></a>
         <button class="menu-item" onclick="editProfile()"><span class="mi">✏️</span>Edit Profile<span class="arr">›</span></button>
         <button class="menu-item" onclick="store.logout()"><span class="mi">🚪</span>Logout<span class="arr">›</span></button>
       </div>
@@ -155,4 +157,63 @@ async function replyTicket(id) {
   if (!v) return;
   try { await api.post(`/api/tickets/${id}/reply`, { message: v }); vTicket(id); }
   catch (e) { toast(e.message, false); }
+}
+
+async function vNotif() {
+  const view = document.getElementById('view');
+  if (!store.user) { sessionStorage.setItem('ptu_after_login', '#/notif'); go('#/auth'); return; }
+  view.innerHTML = `<div class="sec-head"><h2>🔔 Notifikasi</h2></div><div class="skel" style="height:80px"></div><div class="skel" style="height:80px;margin-top:10px"></div>`;
+  try {
+    const d = await api.get('/api/notifications');
+    const list = d.notifications || [];
+    view.innerHTML = `<div class="sec-head"><h2>🔔 Notifikasi</h2>${list.some((n) => !n.is_read) ? `<button class="chip" onclick="readAllNotif()">Tandai dibaca</button>` : ''}</div>` +
+      (list.length ? list.map((n) => `
+      <div class="card notif-item ${n.is_read ? '' : 'unread'}" ${n.link ? `onclick="go('${esc(n.link)}')"` : ''} style="margin-bottom:10px;${n.link ? 'cursor:pointer' : ''}">
+        ${n.is_read ? '' : '<div class="notif-dot"></div>'}
+        <div class="grow"><div style="font-weight:800;font-size:14.5px">${esc(n.title)}</div>
+        <div class="muted" style="font-size:13px;font-weight:600;margin-top:3px;line-height:1.5">${esc(n.message)}</div>
+        <div class="muted" style="font-size:11.5px;font-weight:700;margin-top:5px">${esc(n.created_at || '')}</div></div>
+      </div>`).join('') : `<div class="empty"><div class="big">🔔</div>Belum ada notifikasi.</div>`);
+    try { await api.post('/api/notifications/read'); } catch {}
+    window._unread = 0; renderChrome();
+    view.querySelectorAll('.notif-item.unread').forEach((el) => {
+      el.classList.remove('unread');
+      const dot = el.querySelector('.notif-dot'); if (dot) dot.remove();
+    });
+    const btn = view.querySelector('.sec-head .chip'); if (btn) btn.remove();
+  } catch { view.innerHTML = `<div class="empty">Gagal memuat notifikasi.</div>`; }
+}
+async function readAllNotif() {
+  try { await api.post('/api/notifications/read'); } catch {}
+  vNotif();
+}
+async function refreshUnread() {
+  if (!store.user) { window._unread = 0; return; }
+  try {
+    const d = await api.get('/api/notifications');
+    window._unread = d.unread || 0;
+  } catch { window._unread = 0; }
+}
+
+function vFaq() {
+  const view = document.getElementById('view');
+  const faqs = [
+    ['🛒 Bagaimana cara top up?', 'Pilih game favoritmu → pilih nominal/voucher → isi ID Game (User ID) dengan benar → pilih metode pembayaran → bayar. Diamond/UC dikirim otomatis setelah pembayaran terverifikasi.'],
+    ['⚡ Berapa lama proses pengiriman?', 'QRIS: instan & otomatis setelah pembayaran. Transfer bank: perlu verifikasi admin (maksimal 1×24 jam, biasanya hitungan menit).'],
+    ['💳 Metode pembayaran apa saja?', 'QRIS (semua e-wallet & m-banking) dan transfer bank. Daftar lengkap ada di halaman checkout.'],
+    ['🎮 Di mana saya menemukan ID Game saya?', 'Buka game → profil akun → salin User ID / ID angka. Contoh Mobile Legends: ID ada di bawah avatar profil. Pastikan server/zone juga benar jika diminta.'],
+    ['📦 Bagaimana cara melacak pesanan?', 'Buka menu Orders (perlu login) atau gunakan Lacak Pesanan dengan ID order + email yang dipakai saat checkout.'],
+    ['🎟️ Voucher saya tidak bisa dipakai?', 'Pastikan kode benar, belum kedaluwarsa, dan total belanja memenuhi minimal pembelian (mis. BONUS10 minimal Rp50.000).'],
+    ['😱 Salah mengisi ID Game, bagaimana?', 'Segera buat tiket bantuan / hubungi CS SEBELUM pesanan diproses. Jika item sudah dikirim ke ID yang salah, kami tidak bisa menariknya kembali.'],
+    ['🛡️ Apakah top up di sini aman?', '100% aman. Kami hanya bekerja sama dengan supplier resmi dan data pembayaranmu terenkripsi.'],
+  ];
+  view.innerHTML = `
+    <div class="sec-head"><h2>❓ FAQ</h2></div>
+    <div class="card">
+      ${faqs.map(([q, a]) => `<div class="faq-item" onclick="this.classList.toggle('open')"><div class="fq"><span>${q}</span><span class="arr">›</span></div><div class="fa">${a}</div></div>`).join('')}
+    </div>
+    <div class="card" style="margin-top:12px;text-align:center">
+      <div style="font-weight:800;margin-bottom:8px">Masih butuh bantuan?</div>
+      <button class="btn purple" onclick="go('#/tickets')">💬 Hubungi CS</button>
+    </div>`;
 }

@@ -28,6 +28,8 @@ function dHeader() {
     </div>
     <nav class="d-nav">${nav.map(([k, lb, h]) => `<a href="${h}" class="${k === ak ? 'active' : ''}">${lb}</a>`).join('')}</nav>
     <button class="d-hbtn" onclick="go('#/cart')" title="Keranjang">🛒${store.cartCount() ? `<span class="badge">${store.cartCount()}</span>` : ''}</button>
+    ${u ? `<button class="d-hbtn" onclick="go('#/notif')" title="Notifikasi">🔔${window._unread ? `<span class="badge">${window._unread > 9 ? '9+' : window._unread}</span>` : ''}</button>` : ''}
+    <button class="d-hbtn" onclick="toggleTheme()" title="Mode terang/gelap">${themeIcon()}</button>
     ${u ? `
     <div class="d-userwrap">
       <button class="d-avatar" onclick="toggleDMenu(event)">${esc(initial)}</button>
@@ -70,6 +72,7 @@ function dFooter() {
       <a class="d-logo" href="#/" style="margin-bottom:6px"><span class="logo-badge">🎮</span>
         <span class="logo-text"><b style="color:#fff">PLAYTOPUP</b><span style="color:#fff">STORE</span></span></a>
       <p>Top up game favoritmu secara instan, aman, dan terpercaya. Pembayaran QRIS & transfer bank, support 24/7.</p>
+      ${payStripHTML()}
     </div>
     <div><h4>Belanja</h4>
       <a onclick="go('#/games')">Semua Game</a><a onclick="go('#/track')">Lacak Pesanan</a><a onclick="go('#/wishlist')">Wishlist</a>
@@ -78,7 +81,7 @@ function dFooter() {
       <a onclick="go('#/profile')">Profil</a><a onclick="go('#/orders')">Pesanan</a><a onclick="go('#/wallet')">Wallet</a><a onclick="go('#/tickets')">Bantuan</a>
     </div>
     <div><h4>Bantuan</h4>
-      <a onclick="go('#/tickets')">Hubungi CS</a><a onclick="go('#/track')">Lacak Tanpa Login</a>
+      <a onclick="go('#/tickets')">Hubungi CS</a><a onclick="go('#/track')">Lacak Tanpa Login</a><a onclick="go('#/faq')">FAQ</a>
     </div>
   </div><div class="d-footer-bottom">© 2026 PlayTopUp Store — Instant • Safe • 24/7</div></footer>`;
 }
@@ -92,6 +95,8 @@ async function dHome(el) {
       <div class="d-catrow" id="d-cats">${'<div class="skel" style="height:130px"></div>'.repeat(6)}</div></div>
     <div class="d-sec"><div class="d-sec-head"><h2><span class="dot"></span>Popular Top-Ups</h2><a href="#/games">Lihat Semua ›</a></div>
       <div class="d-pgrid" id="d-pop">${'<div class="skel" style="height:300px"></div>'.repeat(5)}</div></div>
+    <div id="d-flash-slot"></div>
+    ${(() => { const r = getRecent(); return r.length ? `<div class="d-sec"><div class="d-sec-head"><h2><span class="dot"></span>🕐 Terakhir Dilihat</h2></div><div class="d-pgrid">${r.slice(0, 5).map((p) => productCard(p)).join('')}</div></div>` : ''; })()}
     <div class="d-sec"><div class="card" style="display:flex;align-items:center;gap:18px;background:linear-gradient(120deg,#6d28d9,#8b5cf6);color:#fff;border:none">
       <div style="font-size:44px">🎟️</div>
       <div class="grow"><div style="font-weight:900;font-size:19px">Kode voucher: BONUS10</div>
@@ -137,6 +142,7 @@ async function dHome(el) {
   const catBox = document.getElementById('d-cats');
   if (catBox) {
     if (sRes.status === 'fulfilled') {
+      cachePayMethods(sRes.value);
       const cats = sRes.value.categories || [];
       const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
       catBox.innerHTML = cats.map((c) => `
@@ -154,6 +160,7 @@ async function dHome(el) {
       const items = (pRes.value.products || []).sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 10);
       popBox.innerHTML = items.length ? items.map(productCard).join('')
         : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🎮</div>Belum ada produk.</div>`;
+      if (sRes.status === 'fulfilled') renderFlashSale('d-flash-slot', pRes.value.products, sRes.value.flash_sale_ends, true);
     } else {
       popBox.innerHTML = `<div class="d-empty" style="grid-column:1/-1">Gagal memuat produk.</div>`;
     }
@@ -180,6 +187,7 @@ async function dGames(el) {
     <div class="d-catrow" id="d-games">${'<div class="skel" style="height:150px"></div>'.repeat(6)}</div></div>`;
   try {
     const s = await api.get('/api/settings/public');
+    cachePayMethods(s);
     const cats = s.categories || [];
     document.getElementById('d-games').innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
@@ -191,31 +199,67 @@ async function dGames(el) {
 }
 
 async function dGame(el, id) {
+  window._dgSort = 'populer'; window._dgItems = [];
   el.innerHTML = `
     <div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <a href="#/games">Games</a> › <b id="d-gt">…</b></div>
-    <div class="d-sec" style="margin-top:0"><div class="d-pgrid" id="d-ggrid">${'<div class="skel" style="height:300px"></div>'.repeat(5)}</div></div>`;
+    <div class="d-sec" style="margin-top:0"><div id="dg-sort">${sortChips('populer', 'dgSort')}</div>
+    <div class="d-pgrid" id="d-ggrid">${'<div class="skel" style="height:300px"></div>'.repeat(5)}</div></div>`;
   try {
     const s = await api.get('/api/settings/public');
+    cachePayMethods(s);
     const cat = (s.categories || []).find((c) => c.id === id);
-    document.getElementById('d-gt').textContent = cat ? `${cat.icon || ''} ${cat.label}` : 'Produk';
+    const t = document.getElementById('d-gt');
+    if (t) t.textContent = cat ? `${cat.icon || ''} ${cat.label}` : 'Produk';
     const d = await api.get('/api/products?category=' + encodeURIComponent(id) + '&limit=60');
-    const items = d.products || [];
-    document.getElementById('d-ggrid').innerHTML = items.length ? items.map(productCard).join('')
-      : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🎮</div>Belum ada produk di kategori ini.</div>`;
-  } catch { document.getElementById('d-ggrid').innerHTML = `<div class="d-empty" style="grid-column:1/-1">Gagal memuat.</div>`; }
+    window._dgItems = d.products || [];
+    renderDGGrid();
+  } catch {
+    const g = document.getElementById('d-ggrid');
+    if (g) g.innerHTML = `<div class="d-empty" style="grid-column:1/-1">Gagal memuat.</div>`;
+  }
+}
+function dgSort(s) {
+  window._dgSort = s;
+  const el = document.getElementById('dg-sort');
+  if (el) el.innerHTML = sortChips(s, 'dgSort');
+  renderDGGrid();
+}
+function renderDGGrid() {
+  const grid = document.getElementById('d-ggrid');
+  if (!grid) return;
+  const items = applySort(window._dgItems, window._dgSort);
+  grid.innerHTML = items.length ? items.map(productCard).join('')
+    : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🎮</div>Belum ada produk di kategori ini.</div>`;
 }
 
 async function dSearch(el, q) {
+  window._dsSort = 'populer'; window._dsItems = []; window._dsQ = q;
   el.innerHTML = `
     <div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <b>Hasil pencarian</b></div>
     <div class="d-sec" style="margin-top:0"><div class="d-sec-head"><h2>🔍 "${esc(q)}"</h2></div>
+    <div id="ds-sort">${sortChips('populer', 'dsSort')}</div>
     <div class="d-pgrid" id="d-sgrid">${'<div class="skel" style="height:300px"></div>'.repeat(5)}</div></div>`;
   try {
     const d = await api.get('/api/products?q=' + encodeURIComponent(q) + '&limit=40');
-    const items = d.products || [];
-    document.getElementById('d-sgrid').innerHTML = items.length ? items.map(productCard).join('')
-      : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🔍</div>Tidak ada hasil untuk "${esc(q)}".</div>`;
-  } catch { document.getElementById('d-sgrid').innerHTML = `<div class="d-empty" style="grid-column:1/-1">Pencarian gagal.</div>`; }
+    window._dsItems = d.products || [];
+    renderDSGrid();
+  } catch {
+    const g = document.getElementById('d-sgrid');
+    if (g) g.innerHTML = `<div class="d-empty" style="grid-column:1/-1">Pencarian gagal.</div>`;
+  }
+}
+function dsSort(s) {
+  window._dsSort = s;
+  const el = document.getElementById('ds-sort');
+  if (el) el.innerHTML = sortChips(s, 'dsSort');
+  renderDSGrid();
+}
+function renderDSGrid() {
+  const grid = document.getElementById('d-sgrid');
+  if (!grid) return;
+  const items = applySort(window._dsItems, window._dsSort);
+  grid.innerHTML = items.length ? items.map(productCard).join('')
+    : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🔍</div>Tidak ada hasil untuk "${esc(window._dsQ || '')}".</div>`;
 }
 
 /* ---------- PRODUCT DETAIL desktop ---------- */
@@ -225,6 +269,7 @@ async function dProduct(el, id) {
   try { d = await api.get('/api/products/' + id); }
   catch { el.innerHTML = `<div class="d-empty"><div class="big">😕</div>Produk tidak ditemukan.<br><br><button class="btn ghost" onclick="history.back()">Kembali</button></div>`; return; }
   const p = d.product, vars = p.variants || [], imgs = d.images || [];
+  saveRecent(p);
   const mainImg = (imgs[0] && imgs[0].url) || p.image_url || '';
   const disc = Number(p.discount) || 0;
 
@@ -238,7 +283,7 @@ async function dProduct(el, id) {
         <div class="muted" style="font-weight:800;font-size:13.5px;letter-spacing:.4px;text-transform:uppercase">${esc(p.category || '')}</div>
         <h1>${esc(p.name)} ${store.user ? `<button class="icon-btn ghost" style="vertical-align:middle" onclick="dToggleWish(${p.id},this)">${window._wishlist && window._wishlist.has(p.id) ? '❤️' : '🤍'}</button>` : ''}</h1>
         <div>${stars(p.avg_rating, p.review_count)}</div>
-        ${disc ? `<div style="margin-top:10px"><span class="chip" style="background:#fee2e2;color:#b91c1c">-${disc}% OFF</span> <s class="muted">${rp(p.price)}</s></div>` : ''}
+        ${disc ? `<div style="margin-top:10px"><span class="chip" style="background:#fee2e2;color:#b91c1c">-${Math.round(disc)}% OFF</span> <s class="muted">${rp(p.price)}</s></div>` : ''}
         <div class="d-pd-price" id="d-pd-price">${rp(effPrice(p))}</div>
         ${vars.length ? `<div style="font-weight:900;margin:6px 0 2px">Pilih Denominasi</div>
         <div class="d-variant-grid" id="d-var-list">${vars.map((v, i) => `
@@ -256,7 +301,8 @@ async function dProduct(el, id) {
       </div>
     </div>
     <div class="d-sec"><div class="card"><div class="d-sec-head" style="margin:0 0 10px"><h2 style="font-size:18px">Ulasan</h2></div>
-      <div id="d-rev-list"><div class="skel" style="height:70px"></div></div></div></div>`;
+      <div id="d-rev-list"><div class="skel" style="height:70px"></div></div></div></div>
+    <div class="d-sec" id="d-rel-slot"></div>`;
 
   window._dpd = { p, vars, selVar: vars[0] || null, qty: 1 };
   try {
@@ -266,6 +312,18 @@ async function dProduct(el, id) {
       <div class="ticket-msg"><div class="who">${esc(x.user_name || 'User')} • ${stars(x.rating)}</div><div style="font-size:14px">${esc(x.comment || '')}</div></div>`).join('')
       : `<div class="muted" style="font-size:13.5px">Belum ada ulasan.</div>`;
   } catch { document.getElementById('d-rev-list').innerHTML = ''; }
+  loadDRelated(p);
+}
+async function loadDRelated(p) {
+  const slot = document.getElementById('d-rel-slot');
+  if (!slot || !p.category) return;
+  try {
+    const d = await api.get('/api/products?category=' + encodeURIComponent(p.category) + '&limit=12');
+    const items = (d.products || []).filter((x) => x.id !== p.id).slice(0, 5);
+    if (!items.length) return;
+    slot.innerHTML = `<div class="d-sec-head"><h2><span class="dot"></span>🎮 Produk Terkait</h2><a href="#/game/${esc(p.category)}">Lihat Semua ›</a></div>
+      <div class="d-pgrid">${items.map(productCard).join('')}</div>`;
+  } catch {}
 }
 function dSelVar(elm) {
   document.querySelectorAll('#d-var-list .var-item').forEach((x) => x.classList.remove('sel'));
@@ -290,7 +348,7 @@ function dDetailSelection() {
   return {
     product_id: p.id, variant_id: selVar ? selVar.id : null, name: p.name,
     variant_label: selVar ? selVar.label : '', price: selVar ? selVar.price : effPrice(p),
-    image_url: p.image_url, qty: qty || 1,
+    image_url: p.image_url, category: p.category || '', qty: qty || 1,
   };
 }
 function dAddDetailToCart() {
@@ -369,7 +427,7 @@ async function dCheckout(el) {
   el.innerHTML = `<div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <a href="#/cart">Keranjang</a> › <b>Checkout</b></div>
     <div class="d-cols"><div class="skel" style="height:300px"></div><div class="skel" style="height:300px"></div></div>`;
   let pub;
-  try { pub = await api.get('/api/settings/public'); }
+  try { pub = await api.get('/api/settings/public'); cachePayMethods(pub); }
   catch { el.innerHTML = `<div class="d-empty"><div class="big">😕</div>Gagal memuat metode pembayaran.</div>`; return; }
   const methods = pub.pay_methods || [];
   window._dco = { method: methods[0] ? methods[0].id : '', voucher: '', discount: 0 };
@@ -382,6 +440,13 @@ async function dCheckout(el) {
           <div style="font-weight:900;font-size:17px;margin-bottom:12px">🎟️ Voucher</div>
           <div class="row"><input id="dco-vin" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:12px 14px;font-family:inherit;font-weight:700" placeholder="Kode voucher (mis. BONUS10)">
           <button class="btn sm purple" onclick="dApplyVoucher()">Pakai</button></div>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <div style="font-weight:900;font-size:17px;margin-bottom:4px">🎮 Data Game</div>
+          <div class="muted" style="font-size:13px;font-weight:600;margin-bottom:12px">Diamond/UC akan dikirim ke ID ini. Pastikan benar!</div>
+          ${store.cart.map((it, i) => `
+          <div class="field" style="margin-bottom:10px"><label>${gidLabel(it)} — ${esc(it.name)}${it.variant_label ? ` (${esc(it.variant_label)})` : ''}${needGid(it) ? ' *' : ''}</label>
+          <input data-gid="${i}" value="${esc(it.game_id || '')}" oninput="setGid(${i},this.value)" placeholder="${needGid(it) ? 'Contoh: 12345678 (cek di profil game)' : 'Email untuk terima kode voucher'}"></div>`).join('')}
         </div>
         <div class="card">
           <div style="font-weight:900;font-size:17px;margin-bottom:12px">💳 Metode Pembayaran</div>
@@ -426,14 +491,22 @@ async function dApplyVoucher() {
 }
 async function dPlaceOrder() {
   const btn = document.getElementById('dco-btn');
+  const missing = store.cart.findIndex((it) => needGid(it) && !String(it.game_id || '').trim());
+  if (missing >= 0) {
+    toast('Isi ID Game untuk "' + store.cart[missing].name + '" dulu', false);
+    const inp = document.querySelector(`[data-gid="${missing}"]`);
+    if (inp) { inp.focus(); inp.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Memproses…';
   try {
     const d = await api.post('/api/orders', {
-      items: store.cart.map((it) => ({ product_id: it.product_id, variant_id: it.variant_id || null, qty: it.qty })),
+      items: store.cart.map((it) => ({ product_id: it.product_id, variant_id: it.variant_id || null, qty: it.qty, game_id: String(it.game_id || '').trim() })),
       payment_method: window._dco.method,
       voucher_code: window._dco.voucher || undefined,
     });
     store.clearCart();
+    refreshUnread().then(() => renderChrome()).catch(() => {});
     go('#/pay/' + d.order.id);
   } catch (e) { toast(e.message, false); btn.disabled = false; btn.textContent = 'Buat Pesanan →'; }
 }

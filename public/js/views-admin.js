@@ -54,6 +54,7 @@ async function admOrderDetail(id) {
     openModal(`<button class="mclose" onclick="closeModal()">✕</button>
       <h3 style="margin-top:0">Order #${o.id} ${statusPill(o.status)}</h3>
       <div style="font-size:14px;margin-bottom:8px">${esc((o.items || []).map((i) => `${i.name} × ${i.qty}`).join('<br>'))}</div>
+      ${(o.items || []).some((i) => i.game_id) ? `<div class="announce" style="margin:0 0 8px">🎮 <b>ID Game:</b> ${esc((o.items || []).filter((i) => i.game_id).map((i) => `${i.name}: ${i.game_id}`).join(' • '))}</div>` : ''}
       <div class="row" style="margin-bottom:8px"><span class="muted grow">Total</span><b class="price">${rp(o.total)}</b></div>
       <div class="muted" style="font-size:13px">Pay via: ${esc(o.payment_method)}${o.voucher_code ? ` • Voucher: ${esc(o.voucher_code)}` : ''}</div>
       ${o.proof_path ? `<div style="margin:10px 0"><b>Payment proof:</b><br><img src="${esc(o.proof_path)}" loading="lazy" decoding="async" style="max-width:100%;border-radius:12px;margin-top:6px"></div>` : ''}

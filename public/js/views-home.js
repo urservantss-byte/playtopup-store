@@ -32,7 +32,10 @@ async function vHome() {
     <div class="pgrid" id="pop-grid">
       ${'<div class="skel" style="height:270px"></div>'.repeat(4)}
     </div>
+    <div id="flash-slot"></div>
+    ${recentSection()}
     <div class="trust">✨⚡ Instant delivery • 100% Safe Payment • Official Partner</div>
+    <div id="paystrip-slot">${payStripHTML()}</div>
     <div style="height:8px"></div>`;
 
   /* API dipanggil paralel agar halaman lebih cepat tampil */
@@ -44,10 +47,13 @@ async function vHome() {
   const catRow = document.getElementById('cat-row');
   if (sRes.status === 'fulfilled') {
     const s = sRes.value;
+    cachePayMethods(s);
     const slot = document.getElementById('announce-slot');
     if (s.announcement && slot) slot.innerHTML = `<div class="announce">📢 ${esc(s.announcement)}</div>`;
     const cats = [{ id: 'popular', label: 'Popular', icon: '⭐' }, ...(s.categories || [])];
     if (catRow) catRow.innerHTML = cats.map((c) => catChip(c)).join('');
+    const ps = document.getElementById('paystrip-slot');
+    if (ps) ps.innerHTML = payStripHTML();
   } else if (catRow) catRow.innerHTML = '';
 
   const grid = document.getElementById('pop-grid');
@@ -57,6 +63,7 @@ async function vHome() {
       grid.innerHTML = items.length
         ? items.map(productCard).join('')
         : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products yet.</div>`;
+      if (sRes.status === 'fulfilled') renderFlashSale('flash-slot', pRes.value.products, sRes.value.flash_sale_ends, false);
     } else {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load products.</div>`;
     }
@@ -68,6 +75,7 @@ async function vGames() {
   view.innerHTML = `<div class="sec-head"><h2>All Games</h2></div><div class="pgrid" id="games-grid">${'<div class="skel" style="height:150px"></div>'.repeat(4)}</div>`;
   try {
     const s = await api.get('/api/settings/public');
+    cachePayMethods(s);
     const cats = s.categories || [];
     const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
     document.getElementById('games-grid').innerHTML = cats.map((c) => `
@@ -81,25 +89,39 @@ async function vGames() {
 
 async function vGame(id) {
   const view = document.getElementById('view');
-  view.innerHTML = `<div class="sec-head"><h2 id="g-title">…</h2></div><div class="pgrid" id="g-grid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
+  window._gSort = 'populer'; window._gItems = [];
+  view.innerHTML = `<div class="sec-head"><h2 id="g-title">…</h2></div>
+    <div id="g-sort">${sortChips('populer', 'gSort')}</div>
+    <div class="pgrid" id="g-grid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
   const [sRes, pRes] = await Promise.allSettled([
     api.get('/api/settings/public'),
     api.get('/api/products?category=' + encodeURIComponent(id) + '&limit=60'),
   ]);
-  const grid = document.getElementById('g-grid');
-  if (!grid) return;
   if (sRes.status === 'fulfilled') {
     const cat = ((sRes.value.categories || [])).find((c) => c.id === id);
     const t = document.getElementById('g-title');
     if (t) t.textContent = cat ? `${cat.icon || ''} ${cat.label}` : 'Products';
   }
   if (pRes.status === 'fulfilled') {
-    const items = pRes.value.products || [];
-    grid.innerHTML = items.length ? items.map(productCard).join('')
-      : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products in this category yet.</div>`;
+    window._gItems = pRes.value.products || [];
+    renderGGrid();
   } else {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load.</div>`;
+    const grid = document.getElementById('g-grid');
+    if (grid) grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load.</div>`;
   }
+}
+function gSort(s) {
+  window._gSort = s;
+  const el = document.getElementById('g-sort');
+  if (el) el.innerHTML = sortChips(s, 'gSort');
+  renderGGrid();
+}
+function renderGGrid() {
+  const grid = document.getElementById('g-grid');
+  if (!grid) return;
+  const items = applySort(window._gItems, window._gSort);
+  grid.innerHTML = items.length ? items.map(productCard).join('')
+    : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products in this category yet.</div>`;
 }
 
 async function vProduct(id) {
@@ -109,6 +131,7 @@ async function vProduct(id) {
   try { d = await api.get('/api/products/' + id); }
   catch { view.innerHTML = `<div class="empty"><div class="big">😕</div>Product not found.<br><br><button class="btn ghost" onclick="history.back()">Back</button></div>`; return; }
   const p = d.product, vars = p.variants || [], imgs = d.images || [];
+  saveRecent(p);
   const mainImg = (imgs[0] && imgs[0].url) || p.image_url || '';
   const disc = Number(p.discount) || 0;
 
@@ -119,7 +142,7 @@ async function vProduct(id) {
         ${store.user ? `<button class="icon-btn ghost" onclick="toggleWish(${p.id},this)">${window._wishlist && window._wishlist.has(p.id) ? '❤️' : '🤍'}</button>` : ''}</div>
       <div class="muted" style="font-weight:700;font-size:13px;margin:4px 0">${esc(p.category || '')}</div>
       <div>${stars(p.avg_rating, p.review_count)}</div>
-      ${disc ? `<div style="margin-top:8px"><span class="chip" style="background:#fee2e2;color:#b91c1c">-${disc}% OFF</span> <s class="muted">${rp(p.price)}</s></div>` : ''}
+      ${disc ? `<div style="margin-top:8px"><span class="chip" style="background:#fee2e2;color:#b91c1c">-${Math.round(disc)}% OFF</span> <s class="muted">${rp(p.price)}</s></div>` : ''}
       <div class="price" style="font-size:26px;margin-top:6px" id="pd-price">${rp(effPrice(p))}</div>
       ${vars.length ? `<div class="field" style="margin-top:12px"><label>Choose denomination</label><div class="var-list" id="var-list">` +
         vars.map((v, i) => `<div class="var-item ${i === 0 ? 'sel' : ''}" data-vid="${v.id}" data-price="${v.price}" data-label="${esc(v.label)}" onclick="selVar(this)"><span>${esc(v.label)}</span><span class="vp">${rp(v.price)}</span></div>`).join('') + `</div></div>` : ''}
@@ -128,6 +151,7 @@ async function vProduct(id) {
       <div style="font-weight:700;font-size:14px;line-height:1.6">${esc(p.description || 'Instant top-up delivery. Safe & fast, 24/7.')}</div>
     </div>
     <div class="card" style="margin-top:12px"><div class="sec-head" style="margin:0 0 8px"><h2 style="font-size:17px">Reviews</h2></div><div id="rev-list"><div class="skel" style="height:60px"></div></div></div>
+    <div id="rel-slot"></div>
     <div class="sticky-buy">
       <div class="grow"><div class="muted" style="font-size:12px;font-weight:800">TOTAL</div><div class="price" style="font-size:20px" id="buy-total">${rp(effPrice(p))}</div></div>
       <button class="btn ghost" onclick='addDetailToCart()'>🛒 Cart</button>
@@ -136,6 +160,23 @@ async function vProduct(id) {
 
   window._pd = { p, vars, selVar: vars[0] || null };
   loadReviews(id);
+  loadRelated(p);
+}
+async function loadRelated(p) {
+  const slot = document.getElementById('rel-slot');
+  if (!slot || !p.category) return;
+  try {
+    const d = await api.get('/api/products?category=' + encodeURIComponent(p.category) + '&limit=12');
+    const items = (d.products || []).filter((x) => x.id !== p.id).slice(0, 6);
+    if (!items.length) return;
+    slot.innerHTML = `<div class="sec-head" style="margin-top:16px"><h2 style="font-size:17px">🎮 Produk Terkait</h2><a class="link-more" href="#/game/${esc(p.category)}">Lihat Semua ›</a></div>
+      <div class="hscroll">${items.map((x) => `
+        <div class="pcard" style="min-width:150px;max-width:150px;flex:none" onclick="go('#/product/${x.id}')">
+          <div class="pimg imgph">${x.image_url ? `<img src="${esc(imgUrl(x.image_url))}" alt="${esc(x.name)}" loading="lazy" decoding="async" onload="imgLd(this)">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px">🎮</div>`}</div>
+          <div class="pbody"><div class="pname">${esc(x.name)}</div>
+          <button class="buy" onclick="event.stopPropagation();go('#/product/${x.id}')">${rp(effPrice(x))}</button></div>
+        </div>`).join('')}</div>`;
+  } catch {}
 }
 function selVar(el) {
   document.querySelectorAll('#var-list .var-item').forEach((x) => x.classList.remove('sel'));
@@ -156,6 +197,7 @@ function detailSelection() {
     variant_label: selVar ? selVar.label : '',
     price: selVar ? selVar.price : effPrice(p),
     image_url: p.image_url,
+    category: p.category || '',
     qty: 1,
   };
 }

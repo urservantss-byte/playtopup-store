@@ -21,8 +21,9 @@ function renderTopbar() {
         <span class="logo-text"><b>PLAYTOPUP</b><span>STORE</span></span>
       </a>
       <div class="tb-spacer"></div>
+      <button class="icon-btn" onclick="toggleTheme()" aria-label="Theme">${themeIcon()}</button>
       <button class="icon-btn" onclick="toggleSearch()" aria-label="Search">🔍</button>
-      <button class="icon-btn" onclick="go('#/tickets')" aria-label="Notifications">🔔${u ? '<span class="dot"></span>' : ''}</button>
+      <button class="icon-btn" onclick="go('#/notif')" aria-label="Notifications">🔔${window._unread ? `<span class="badge">${window._unread > 9 ? '9+' : window._unread}</span>` : (u ? '<span class="dot"></span>' : '')}</button>
       <button class="icon-btn" onclick="go('#/cart')" aria-label="Cart">🛒${store.cartCount() ? `<span class="badge">${store.cartCount()}</span>` : ''}</button>
     </div>
     <div class="tb-search" id="tb-search" style="display:none">
@@ -61,13 +62,31 @@ function renderNav(active) {
 
 async function vSearch(q) {
   const view = document.getElementById('view');
-  view.innerHTML = `<div class="sec-head"><h2>🔍 "${esc(q)}"</h2></div><div class="pgrid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
+  window._sSort = 'populer'; window._sItems = []; window._sQ = q;
+  view.innerHTML = `<div class="sec-head"><h2>🔍 "${esc(q)}"</h2></div>
+    <div id="s-sort">${sortChips('populer', 'sSort')}</div>
+    <div class="pgrid" id="s-grid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
   try {
     const d = await api.get('/api/products?q=' + encodeURIComponent(q) + '&limit=40');
-    const items = d.products || [];
-    document.querySelector('#view .pgrid').innerHTML = items.length ? items.map(productCard).join('')
-      : `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>No results for "${esc(q)}".</div>`;
-  } catch { document.querySelector('#view .pgrid').innerHTML = `<div class="empty" style="grid-column:1/-1">Search failed.</div>`; }
+    window._sItems = d.products || [];
+    renderSGrid();
+  } catch {
+    const g = document.getElementById('s-grid');
+    if (g) g.innerHTML = `<div class="empty" style="grid-column:1/-1">Search failed.</div>`;
+  }
+}
+function sSort(s) {
+  window._sSort = s;
+  const el = document.getElementById('s-sort');
+  if (el) el.innerHTML = sortChips(s, 'sSort');
+  renderSGrid();
+}
+function renderSGrid() {
+  const grid = document.getElementById('s-grid');
+  if (!grid) return;
+  const items = applySort(window._sItems, window._sSort);
+  grid.innerHTML = items.length ? items.map(productCard).join('')
+    : `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>No results for "${esc(window._sQ || '')}".</div>`;
 }
 
 const routes = [
@@ -83,6 +102,8 @@ const routes = [
   [/^#\/order\/(\d+)$/, (m) => { renderNav('orders'); vOrder(m[1]); }],
   [/^#\/track$/, () => { renderNav('orders'); vTrackForm(); }],
   [/^#\/track\/(\d+)$/, (m) => { renderNav('orders'); vTrackForm(); }],
+  [/^#\/faq$/, () => { renderNav('profile'); vFaq(); }],
+  [/^#\/notif$/, () => { renderNav('profile'); vNotif(); }],
   [/^#\/wallet$/, () => { renderNav('wallet'); vWallet(); }],
   [/^#\/wishlist$/, () => { renderNav('profile'); vWishlist(); }],
   [/^#\/tickets$/, () => { renderNav('profile'); vTickets(); }],
@@ -104,6 +125,7 @@ function routeMobile(h) {
 
 function router() {
   closeModal();
+  stopFlashCountdown();
   if (isDesktop()) { renderDesktop(); return; }
   ensureMobileShell();
   renderTopbar();
@@ -136,6 +158,7 @@ window.addEventListener('hashchange', router);
   renderNav('home');
   await store.refreshUser();
   await loadWishlist();
+  await refreshUnread();
   renderChrome();
   if (!location.hash) location.hash = '#/';
   router();

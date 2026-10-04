@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS products (
   stock INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL DEFAULT '',
+  link TEXT NOT NULL DEFAULT '',
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id),
@@ -441,6 +450,13 @@ function notifyOrder(orderId, title, msg) {
       if (!ok) console.log('[notif] SMTP belum dikonfigurasi, email dilewati');
     } catch (e) { console.log('[notif] gagal:', e.message); }
   });
+}
+/* Notifikasi in-app (disimpan di DB, dibaca lewat /api/notifications) */
+function pushNotif(userId, title, message, link) {
+  try {
+    db.prepare('INSERT INTO notifications (user_id, title, message, link) VALUES (?,?,?,?)')
+      .run(userId, String(title || '').slice(0, 120), String(message || '').slice(0, 500), String(link || '').slice(0, 200));
+  } catch (e) { console.log('[pushNotif] gagal:', e.message); }
 }
 function issueToken() { return crypto.randomBytes(32).toString('hex'); }
 function mailLayout(title, bodyHtml, ctaUrl, ctaLabel) {
@@ -1090,6 +1106,16 @@ app.post('/api/tickets', auth, (req, res) => {
   res.status(201).json({ ticket: ticketWithMessages(db.prepare('SELECT * FROM tickets WHERE id = ?').get(info.lastInsertRowid)) });
 });
 // User: daftar tiket miliknya
+// ---- Notifikasi in-app ----
+app.get('/api/notifications', auth, (req, res) => {
+  const list = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 30').all(req.user.id);
+  const unread = db.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id = ? AND is_read = 0').get(req.user.id).c;
+  res.json({ notifications: list, unread });
+});
+app.post('/api/notifications/read', auth, (req, res) => {
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?').run(req.user.id);
+  res.json({ ok: true });
+});
 app.get('/api/tickets', auth, (req, res) => {
   const rows = db.prepare(`SELECT t.*, (SELECT COUNT(*) FROM ticket_messages m WHERE m.ticket_id = t.id) AS msg_count
     FROM tickets t WHERE t.user_id = ? ORDER BY t.updated_at DESC`).all(req.user.id);
@@ -1593,6 +1619,8 @@ app.post('/api/orders', auth, (req, res) => {
       const qty = Math.max(1, parseInt(it.qty) || 1);
       const hasVar = db.prepare('SELECT COUNT(*) c FROM product_variants WHERE product_id = ?').get(p.id).c > 0;
       if (hasVar && !it.variant_id) throw { status: 400, msg: `Pilih varian untuk "${p.name}"` };
+      const needGameId = String(p.category || '').toLowerCase() !== 'steam';
+      if (needGameId && !String(it.game_id || '').trim()) throw { status: 400, msg: `ID Game wajib diisi untuk "${p.name}"` };
       let price = p.price, vlabel = '';
       if (it.variant_id) {
         const v = db.prepare('SELECT * FROM product_variants WHERE id = ? AND product_id = ?').get(it.variant_id, p.id);
@@ -1605,7 +1633,7 @@ app.post('/api/orders', auth, (req, res) => {
         db.prepare('UPDATE products SET stock = stock - ? WHERE id = ?').run(qty, p.id);
         price = effPrice(p.price, p.discount);
       }
-      snapshot.push({ product_id: p.id, variant_id: it.variant_id || null, variant_label: vlabel, name: vlabel ? `${p.name} (${vlabel})` : p.name, price, qty, image_url: p.image_url });
+      snapshot.push({ product_id: p.id, variant_id: it.variant_id || null, variant_label: vlabel, name: vlabel ? `${p.name} (${vlabel})` : p.name, price, qty, image_url: p.image_url, game_id: String(it.game_id || '').slice(0, 80) });
       total += price * qty;
     }
     let discount = 0, vcode = null;
@@ -1622,6 +1650,7 @@ app.post('/api/orders', auth, (req, res) => {
   try {
     const order = tx();
     notifyOrder(order.id, 'Pesanan dibuat 🎉', 'Pesananmu sudah kami terima dan menunggu verifikasi pembayaran.');
+    pushNotif(req.user.id, 'Pesanan dibuat 🎉', `Pesanan #${order.id} menunggu pembayaran sebesar ${rp0(order.total)}.`, '#/pay/' + order.id);
     res.status(201).json({ order });
   } catch (e) {
     res.status(e.status || 500).json({ error: e.msg || 'Gagal membuat pesanan' });
@@ -1743,7 +1772,10 @@ app.patch('/api/orders/:id/status', auth, requireAdmin, (req, res) => {
     dibatalkan: ['Pesanan dibatalkan ❌', 'Pesananmu dibatalkan. Hubungi CS jika ada pertanyaan.'],
   };
   const doneStatus = autoDelivered ? 'delivery' : status;
-  if (msgs[doneStatus]) notifyOrder(order.id, msgs[doneStatus][0], msgs[doneStatus][1]);
+  if (msgs[doneStatus]) {
+    notifyOrder(order.id, msgs[doneStatus][0], msgs[doneStatus][1]);
+    pushNotif(order.user_id, msgs[doneStatus][0], msgs[doneStatus][1], '#/order/' + order.id);
+  }
   if (doneStatus === 'delivery') {
     const o = db.prepare(`SELECT o.*, u.email, u.name FROM orders o JOIN users u ON u.id = o.user_id WHERE o.id = ?`).get(order.id);
     if (o) notifyAdmin(`Pesanan #${o.id} dikirim 📤`,

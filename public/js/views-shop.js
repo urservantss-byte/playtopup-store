@@ -33,7 +33,7 @@ async function vCheckout() {
   if (!store.cart.length) { go('#/cart'); return; }
   view.innerHTML = `<div class="sec-head"><h2>Checkout</h2></div><div class="skel" style="height:200px"></div>`;
   let pub;
-  try { pub = await api.get('/api/settings/public'); }
+  try { pub = await api.get('/api/settings/public'); cachePayMethods(pub); }
   catch { view.innerHTML = `<div class="empty">Failed to load payment methods.</div>`; return; }
   const methods = pub.pay_methods || [];
   window._co = { method: methods[0] ? methods[0].id : '', voucher: '', discount: 0 };
@@ -47,6 +47,13 @@ async function vCheckout() {
       <div class="row"><span class="grow" style="font-weight:700">Subtotal</span><b id="co-sub">${rp(store.cartTotal())}</b></div>
       <div class="row" id="co-disc-row" style="display:none"><span class="grow" style="font-weight:700;color:var(--green)">Voucher <span id="co-vcode"></span></span><b id="co-disc" style="color:var(--green)"></b></div>
       <div class="row" style="margin-top:6px"><span class="grow" style="font-weight:900">Total</span><span class="price" style="font-size:22px" id="co-total">${rp(store.cartTotal())}</span></div>
+    </div>
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-weight:900;margin-bottom:4px">🎮 Data Game</div>
+      <div class="muted" style="font-size:12.5px;font-weight:600;margin-bottom:10px">Diamond/UC akan dikirim ke ID ini. Pastikan benar!</div>
+      ${store.cart.map((it, i) => `
+      <div class="field" style="margin-bottom:8px"><label>${gidLabel(it)} — ${esc(it.name)}${it.variant_label ? ` (${esc(it.variant_label)})` : ''}${needGid(it) ? ' *' : ''}</label>
+      <input data-gid="${i}" value="${esc(it.game_id || '')}" oninput="setGid(${i},this.value)" placeholder="${needGid(it) ? 'Contoh: 12345678 (cek di profil game)' : 'Email untuk terima kode voucher'}"></div>`).join('')}
     </div>
     <div class="card" style="margin-bottom:12px">
       <div style="font-weight:900;margin-bottom:8px">🎟️ Voucher</div>
@@ -86,15 +93,23 @@ async function applyVoucher() {
 }
 async function placeOrder() {
   const btn = document.getElementById('co-btn');
+  const missing = store.cart.findIndex((it) => needGid(it) && !String(it.game_id || '').trim());
+  if (missing >= 0) {
+    toast('Isi ID Game untuk "' + store.cart[missing].name + '" dulu', false);
+    const inp = document.querySelector(`[data-gid="${missing}"]`);
+    if (inp) { inp.focus(); inp.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    return;
+  }
   btn.disabled = true; btn.textContent = 'Processing…';
   try {
     const d = await api.post('/api/orders', {
-      items: store.cart.map((it) => ({ product_id: it.product_id, variant_id: it.variant_id || null, qty: it.qty })),
+      items: store.cart.map((it) => ({ product_id: it.product_id, variant_id: it.variant_id || null, qty: it.qty, game_id: String(it.game_id || '').trim() })),
       payment_method: window._co.method,
       voucher_code: window._co.voucher || undefined,
     });
     const order = d.order;
     store.clearCart();
+    refreshUnread().then(() => renderChrome()).catch(() => {});
     go('#/pay/' + order.id);
   } catch (e) { toast(e.message, false); btn.disabled = false; btn.textContent = 'Place Order →'; }
 }
@@ -126,7 +141,7 @@ async function vPay(id) {
       <button class="btn block line" onclick="go('#/track/${o.id}')">Track without login</button>`;
   } else {
     let pub = {};
-    try { pub = await api.get('/api/settings/public'); } catch {}
+    try { pub = await api.get('/api/settings/public'); cachePayMethods(pub); } catch {}
     const pm = (pub.pay_methods || []).find((m) => m.id === o.payment_method);
     view.innerHTML = `
       <div class="sec-head"><h2>Pay Order #${o.id}</h2>${statusPill(o.status)}</div>
@@ -198,7 +213,7 @@ async function vOrder(id) {
   view.innerHTML = `
     <div class="sec-head"><h2>Order #${o.id}</h2>${statusPill(o.status)}</div>
     <div class="card" style="margin-bottom:12px">
-      ${(o.items || []).map((i) => `<div class="row" style="margin-bottom:6px"><span class="grow" style="font-size:14px;font-weight:700">${esc(i.name)} × ${i.qty}</span><b>${rp(i.price * i.qty)}</b></div>`).join('')}
+      ${(o.items || []).map((i) => `<div style="margin-bottom:8px"><div class="row"><span class="grow" style="font-size:14px;font-weight:700">${esc(i.name)} × ${i.qty}</span><b>${rp(i.price * i.qty)}</b></div>${i.game_id ? `<div class="muted" style="font-size:12.5px;font-weight:700">🎮 ID: ${esc(i.game_id)}</div>` : ''}</div>`).join('')}
       <div class="divider"></div>
       <div class="row"><span class="grow" style="font-weight:700">Total</span><b class="price" style="font-size:20px">${rp(o.total)}</b></div>
       <div class="muted" style="font-size:13px;font-weight:600;margin-top:6px">Paid via: ${esc(o.payment_method)}</div>
@@ -217,7 +232,26 @@ async function vOrder(id) {
       ${o.status === 'pending' && !/qris/i.test(o.payment_method) ? `<button class="btn grow" onclick="go('#/pay/${o.id}')">Pay Now</button>` : ''}
       ${o.status === 'pending' ? `<button class="btn line grow" onclick="cancelOrder(${o.id})">Cancel</button>` : ''}
     </div>
-    ${o.status === 'delivery' ? `<div style="height:10px"></div><button class="btn purple block" onclick="reviewOrder(${o.id})">⭐ Write a Review</button>` : ''}`;
+    ${o.status === 'delivery' ? `<div style="height:10px"></div><button class="btn purple block" onclick="reviewOrder(${o.id})">⭐ Write a Review</button>` : ''}
+    <div style="height:10px"></div><button class="btn line block" onclick="buyAgain(${o.id})">🔁 Beli Lagi</button>`;
+}
+async function buyAgain(oid) {
+  try {
+    const d = await api.get('/api/orders/' + oid);
+    for (const i of (d.order.items || [])) {
+      let p = null;
+      try { p = (await api.get('/api/products/' + i.product_id)).product; } catch {}
+      if (!p) continue;
+      const v = (p.variants || []).find((x) => x.id === i.variant_id);
+      store.addToCart({
+        product_id: p.id, variant_id: v ? v.id : null, name: p.name,
+        variant_label: v ? v.label : '', price: v ? v.price : effPrice(p),
+        image_url: p.image_url, category: p.category || '', qty: i.qty || 1,
+      });
+    }
+    toast('Ditambahkan ke keranjang', true);
+    go('#/cart');
+  } catch (e) { toast(e.message, false); }
 }
 async function cancelOrder(id) {
   confirmModal('Cancel order?', `Cancel order #${id}?`, async () => {

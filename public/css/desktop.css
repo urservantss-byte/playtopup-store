@@ -209,3 +209,25 @@ body.is-desktop #bg-decor { opacity: .5; }
 
 /* ---------- performance ---------- */
 .d-cat { content-visibility: auto; contain-intrinsic-size: auto 170px; }
+
+/* ================= LIGHT MODE (desktop) ================= */
+[data-theme="light"] .d-header { background: rgba(255,255,255,.85); }
+[data-theme="light"] .d-hero-fallback { box-shadow: var(--shadow-sm); }
+[data-theme="light"] .d-nav a.active { color: var(--purple-deep); }
+[data-theme="light"] .d-hero-dots button.on { background: var(--purple-deep); box-shadow: 0 0 12px rgba(124,58,237,.5); }
+[data-theme="light"] .d-hero-arrow { background: rgba(255,255,255,.85); color: var(--ink); }
+[data-theme="light"] .d-footer { background: rgba(255,255,255,.92); }
+[data-theme="light"] .d-footer h4 { color: var(--ink); }
+[data-theme="light"] .d-footer p, [data-theme="light"] .d-footer a { color: var(--muted); }
+[data-theme="light"] .d-brand .d-logo b { color: var(--ink) !important; }
+[data-theme="light"] .d-brand .d-logo span span { color: var(--muted) !important; }
+
+/* ---------- kartu produk desktop: sentuhan premium ---------- */
+.d-pgrid .pcard { border-radius: 22px; }
+.d-pgrid .pcard:hover { transform: translateY(-6px); }
+.d-pgrid .pcard .pbody { padding: 16px 18px 18px; gap: 6px; }
+.d-pgrid .pcard .pname { font-size: 15.5px; }
+.d-pgrid .pcard .pvar { font-size: 12.5px; }
+.d-pgrid .pcard .buy { font-size: 15px; padding: 12px; margin-top: 10px; }
+/* section header desktop: lebih tegas */
+.d-sec-head { margin-bottom: 20px; }

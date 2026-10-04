@@ -67,6 +67,17 @@ function imgLd(el) {
   const w = el.closest('.imgph');
   if (w) w.classList.add('done');
 }
+function badgesInner(p) {
+  const disc = Number(p.discount) || 0;
+  let b = '';
+  if (disc > 0) b += `<span class="pbadge sale">-${Math.round(disc)}%</span>`;
+  if ((p.sold_count || 0) >= 10) b += `<span class="pbadge hot">🔥 Terlaris</span>`;
+  return b;
+}
+function badgeHTML(p) {
+  const b = badgesInner(p);
+  return b ? `<div class="pbadges">${b}</div>` : '';
+}
 function productCard(p) {
   const img = p.image_url ? `<img src="${esc(imgUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy" decoding="async" onload="imgLd(this)">`
     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:44px;background:var(--purple-soft)">🎮</div>`;
@@ -74,13 +85,15 @@ function productCard(p) {
   return `
   <div class="pcard" onclick="go('#/product/${p.id}')">
     <div class="pimg-wrap"><div class="pimg imgph">${img}</div>
+      ${badgeHTML(p)}
       ${store.user ? `<button class="wish-btn" onclick="event.stopPropagation();toggleWish(${p.id},this)" aria-label="wishlist">${wished ? '❤️' : '🤍'}</button>` : ''}
     </div>
     <div class="pbody">
       <div class="pname">${esc(p.name)}</div>
       <div class="pvar">${esc(p.variant_label || p.short || '')}</div>
       <div class="prate">${stars(p.avg_rating, p.sold_count != null ? fmtCount(p.sold_count) + ' sold' : p.review_count)}</div>
-      <button class="buy" onclick="event.stopPropagation();quickBuy(${p.id})">${rp(p.price)}</button>
+      ${Number(p.discount) > 0 ? `<div class="pvar"><s class="muted">${rp(p.price)}</s></div>` : ''}
+      <button class="buy" onclick="event.stopPropagation();quickBuy(${p.id})">${rp(effPrice(p))}</button>
     </div>
   </div>`;
 }
@@ -106,7 +119,7 @@ async function quickBuy(pid) {
     const p = d.product;
     const vars = p.variants || [];
     if (vars.length) { go('#/product/' + pid); return; } // pilih varian dulu
-    store.addToCart({ product_id: p.id, variant_id: null, name: p.name, variant_label: '', price: effPrice(p), image_url: p.image_url, qty: 1 });
+    store.addToCart({ product_id: p.id, variant_id: null, name: p.name, variant_label: '', price: effPrice(p), image_url: p.image_url, category: p.category || '', qty: 1 });
     toast('Added to cart', true);
   } catch (e) { toast(e.message, false); }
 }
@@ -121,6 +134,47 @@ function debounce(fn, ms) {
 }
 function go(hash) { location.hash = hash; }
 
+/* ---------- theme (dark / light) ---------- */
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+function themeIcon() { return currentTheme() === 'light' ? '🌙' : '☀️'; }
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark');
+  try { localStorage.setItem('ptu_theme', t === 'light' ? 'light' : 'dark'); } catch {}
+  renderChrome();
+}
+function toggleTheme() { applyTheme(currentTheme() === 'light' ? 'dark' : 'light'); }
+
+/* ---------- game ID per item (checkout) ---------- */
+function needGid(it) { return (it.category || '') !== 'steam'; }
+function setGid(i, v) { if (store.cart[i]) { store.cart[i].game_id = v; store.saveCart(); } }
+function gidLabel(it) { return needGid(it) ? '🎮 ID Game / User ID' : '📧 Email pengiriman'; }
+
+/* ---------- terakhir dilihat ---------- */
+function saveRecent(p) {
+  try {
+    let r = JSON.parse(localStorage.getItem('ptu_recent') || '[]');
+    r = r.filter((x) => x.id !== p.id);
+    r.unshift({ id: p.id, name: p.name, image_url: p.image_url, price: effPrice(p) });
+    localStorage.setItem('ptu_recent', JSON.stringify(r.slice(0, 8)));
+  } catch {}
+}
+function getRecent() {
+  try { return JSON.parse(localStorage.getItem('ptu_recent') || '[]'); } catch { return []; }
+}
+function recentSection() {
+  const r = getRecent();
+  if (!r.length) return '';
+  return `<div class="sec-head" style="margin-top:6px"><h2>🕐 Terakhir Dilihat</h2></div>
+    <div class="hscroll">${r.map((p) => `
+      <div class="pcard" style="min-width:150px;max-width:150px;flex:none" onclick="go('#/product/${p.id}')">
+        <div class="pimg imgph">${p.image_url ? `<img src="${esc(imgUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy" decoding="async" onload="imgLd(this)">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px">🎮</div>`}</div>
+        <div class="pbody"><div class="pname">${esc(p.name)}</div>
+        <button class="buy" onclick="event.stopPropagation();go('#/product/${p.id}')">${rp(p.price)}</button></div>
+      </div>`).join('')}</div>`;
+}
+
 async function loadWishlist() {
   window._wishlist = new Set();
   if (!store.user) return;
@@ -128,4 +182,72 @@ async function loadWishlist() {
     const d = await api.get('/api/wishlist');
     (d.items || d.wishlist || []).forEach((w) => window._wishlist.add(w.product_id || w.id));
   } catch { /* abaikan */ }
+}
+
+/* ---------- sort & filter produk ---------- */
+const SORT_OPTS = [['populer', '🔥 Terlaris'], ['termurah', '💰 Termurah'], ['termahal', '💎 Termahal'], ['terbaru', '✨ Terbaru']];
+function sortChips(cur, fnName) {
+  return `<div class="hscroll" style="margin-bottom:12px">${SORT_OPTS.map(([k, l]) => `<button class="chip ${k === cur ? 'active' : ''}" onclick="${fnName}('${k}')">${l}</button>`).join('')}</div>`;
+}
+function applySort(items, sort) {
+  const a = [...(items || [])];
+  if (sort === 'termurah') a.sort((x, y) => effPrice(x) - effPrice(y));
+  else if (sort === 'termahal') a.sort((x, y) => effPrice(y) - effPrice(x));
+  else if (sort === 'terbaru') a.sort((x, y) => y.id - x.id);
+  else a.sort((x, y) => (y.sold_count || 0) - (x.sold_count || 0));
+  return a;
+}
+
+/* ---------- flash sale ---------- */
+function renderFlashSale(slotId, products, endsAt, desktop) {
+  const slot = document.getElementById(slotId);
+  if (!slot) return;
+  const ends = new Date(String(endsAt || '').replace(' ', 'T')).getTime();
+  const disc = (products || []).filter((p) => Number(p.discount) > 0).slice(0, desktop ? 5 : 6);
+  if (!endsAt || isNaN(ends) || ends <= Date.now() || !disc.length) { slot.innerHTML = ''; return; }
+  const cards = desktop
+    ? `<div class="d-pgrid">${disc.map(productCard).join('')}</div>`
+    : `<div class="hscroll">${disc.map((x) => `
+      <div class="pcard" style="min-width:150px;max-width:150px;flex:none" onclick="go('#/product/${x.id}')">
+        <div class="pimg-wrap"><div class="pimg imgph">${x.image_url ? `<img src="${esc(imgUrl(x.image_url))}" alt="${esc(x.name)}" loading="lazy" decoding="async" onload="imgLd(this)">` : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px">🎮</div>`}</div>
+        <div class="pbadges">${badgesInner(x)}</div></div>
+        <div class="pbody"><div class="pname">${esc(x.name)}</div>
+        <div class="pvar"><s class="muted">${rp(x.price)}</s></div>
+        <button class="buy" onclick="event.stopPropagation();go('#/product/${x.id}')">${rp(effPrice(x))}</button></div>
+      </div>`).join('')}</div>`;
+  const head = desktop
+    ? `<div class="d-sec-head"><h2><span class="dot"></span>⚡ Flash Sale</h2><span class="flash-timer" id="flash-timer-d"></span></div>`
+    : `<div class="sec-head"><div class="flash-head"><h2>⚡ Flash Sale</h2><span class="flash-timer" id="flash-timer-m"></span></div></div>`;
+  slot.innerHTML = desktop
+    ? `<div class="d-sec">${head}${cards}</div>`
+    : `${head}${cards}`;
+  startFlashCountdown(ends, desktop ? 'flash-timer-d' : 'flash-timer-m');
+}
+function startFlashCountdown(ends, elId) {
+  if (window._flashTimer) { clearInterval(window._flashTimer); window._flashTimer = null; }
+  const tick = () => {
+    const el = document.getElementById(elId);
+    if (!el) { clearInterval(window._flashTimer); window._flashTimer = null; return; }
+    const ms = ends - Date.now();
+    if (ms <= 0) { el.textContent = 'Berakhir'; clearInterval(window._flashTimer); window._flashTimer = null; return; }
+    const h = Math.floor(ms / 36e5), m = Math.floor(ms % 36e5 / 6e4), s = Math.floor(ms % 6e4 / 1e3);
+    el.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+  tick();
+  window._flashTimer = setInterval(tick, 1000);
+}
+function stopFlashCountdown() {
+  if (window._flashTimer) { clearInterval(window._flashTimer); window._flashTimer = null; }
+}
+
+/* ---------- strip metode pembayaran ---------- */
+function payStripHTML() {
+  const ms = window._payMethods || [
+    { label: '⚡ QRIS' }, { label: '🏦 BCA' }, { label: '🏦 Mandiri' }, { label: '📱 DANA' },
+  ];
+  if (!ms.length) return '';
+  return `<div class="pay-strip"><span class="muted" style="font-size:11.5px;font-weight:800;letter-spacing:1px">PEMBAYARAN</span>${ms.map((m) => `<span class="pay-chip">${esc(m.label)}</span>`).join('')}</div>`;
+}
+function cachePayMethods(s) {
+  if (s && Array.isArray(s.pay_methods)) window._payMethods = s.pay_methods;
 }
