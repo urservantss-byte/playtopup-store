@@ -1,0 +1,142 @@
+/* ===== PlayTopUp Store — shell: topbar, bottom nav, router ===== */
+
+/* Desktop vs mobile: dua desain terpisah.
+   Desktop (>=1024px) -> views-desktop.js + desktop.css (body.is-desktop).
+   Mobile -> desain app-shell seperti sekarang. */
+const mqDesktop = window.matchMedia('(min-width: 1024px)');
+function isDesktop() { return mqDesktop.matches; }
+function applyMode() {
+  document.body.classList.toggle('is-desktop', isDesktop());
+}
+if (mqDesktop.addEventListener) mqDesktop.addEventListener('change', () => { applyMode(); router(); });
+
+function renderTopbar() {
+  const tb = document.getElementById('topbar');
+  if (!tb) return;
+  const u = store.user;
+  tb.innerHTML = `
+    <div class="tb-row">
+      <a class="logo" href="#/">
+        <span class="logo-badge">🎮</span>
+        <span class="logo-text"><b>PLAYTOPUP</b><span>STORE</span></span>
+      </a>
+      <div class="tb-spacer"></div>
+      <button class="icon-btn" onclick="toggleSearch()" aria-label="Search">🔍</button>
+      <button class="icon-btn" onclick="go('#/tickets')" aria-label="Notifications">🔔${u ? '<span class="dot"></span>' : ''}</button>
+      <button class="icon-btn" onclick="go('#/cart')" aria-label="Cart">🛒${store.cartCount() ? `<span class="badge">${store.cartCount()}</span>` : ''}</button>
+    </div>
+    <div class="tb-search" id="tb-search" style="display:none">
+      <input id="tb-q" placeholder="Search games, diamonds, vouchers…" onkeydown="if(event.key==='Enter')doSearch()">
+      <button class="btn sm purple" onclick="doSearch()">Go</button>
+    </div>`;
+}
+/* refresh header (mobile topbar / desktop header) */
+function renderChrome() {
+  if (isDesktop()) { if (typeof refreshDChrome === 'function') refreshDChrome(); }
+  else renderTopbar();
+}
+function toggleSearch() {
+  const el = document.getElementById('tb-search');
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+  if (el.style.display !== 'none') document.getElementById('tb-q').focus();
+}
+function doSearch() {
+  const q = document.getElementById('tb-q').value.trim();
+  if (q) go('#/search/' + encodeURIComponent(q));
+}
+
+function renderNav(active) {
+  const nav = document.getElementById('bottomnav');
+  if (!nav) return;
+  const items = [
+    ['home', '🏠', 'Home', '#/'],
+    ['games', '🎯', 'Games', '#/games'],
+    ['orders', '📦', 'Orders', '#/orders'],
+    ['wallet', '👛', 'Wallet', '#/wallet'],
+    ['profile', '👤', 'Profile', store.user ? '#/profile' : '#/auth'],
+  ];
+  nav.innerHTML = items.map(([k, ic, lb, h]) =>
+    `<button class="bn-item ${k === active ? 'active' : ''}" onclick="go('${h}')"><span class="ic">${ic}</span>${lb}</button>`).join('');
+}
+
+async function vSearch(q) {
+  const view = document.getElementById('view');
+  view.innerHTML = `<div class="sec-head"><h2>🔍 "${esc(q)}"</h2></div><div class="pgrid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
+  try {
+    const d = await api.get('/api/products?q=' + encodeURIComponent(q) + '&limit=40');
+    const items = d.products || [];
+    document.querySelector('#view .pgrid').innerHTML = items.length ? items.map(productCard).join('')
+      : `<div class="empty" style="grid-column:1/-1"><div class="big">🔍</div>No results for "${esc(q)}".</div>`;
+  } catch { document.querySelector('#view .pgrid').innerHTML = `<div class="empty" style="grid-column:1/-1">Search failed.</div>`; }
+}
+
+const routes = [
+  [/^#\/?$/, () => { renderNav('home'); vHome(); }],
+  [/^#\/games$/, () => { renderNav('games'); vGames(); }],
+  [/^#\/game\/([\w-]+)$/, (m) => { renderNav('games'); vGame(m[1]); }],
+  [/^#\/product\/(\d+)$/, (m) => { renderNav('home'); vProduct(m[1]); }],
+  [/^#\/search\/(.+)$/, (m) => { renderNav('home'); vSearch(decodeURIComponent(m[1])); }],
+  [/^#\/cart$/, () => { renderNav('home'); vCart(); }],
+  [/^#\/checkout$/, () => { renderNav('home'); vCheckout(); }],
+  [/^#\/pay\/(\d+)$/, (m) => { renderNav('orders'); vPay(m[1]); }],
+  [/^#\/orders$/, () => { renderNav('orders'); vOrders(); }],
+  [/^#\/order\/(\d+)$/, (m) => { renderNav('orders'); vOrder(m[1]); }],
+  [/^#\/track$/, () => { renderNav('orders'); vTrackForm(); }],
+  [/^#\/track\/(\d+)$/, (m) => { renderNav('orders'); vTrackForm(); }],
+  [/^#\/wallet$/, () => { renderNav('wallet'); vWallet(); }],
+  [/^#\/wishlist$/, () => { renderNav('profile'); vWishlist(); }],
+  [/^#\/tickets$/, () => { renderNav('profile'); vTickets(); }],
+  [/^#\/ticket\/(\d+)$/, (m) => { renderNav('profile'); vTicket(m[1]); }],
+  [/^#\/profile$/, () => { renderNav('profile'); vProfile(); }],
+  [/^#\/auth$/, () => { renderNav('profile'); vAuth(); }],
+  [/^#\/forgot$/, () => { renderNav('profile'); vForgot(); }],
+  [/^#\/admin(?:\/(\w+))?$/, (m) => { renderNav('profile'); vAdmin(m[1]); }],
+];
+
+function routeMobile(h) {
+  for (const [re, fn] of routes) {
+    const m = h.match(re);
+    if (m) { fn(m); window.scrollTo(0, 0); return true; }
+  }
+  renderNav('home'); vHome(); window.scrollTo(0, 0);
+  return false;
+}
+
+function router() {
+  closeModal();
+  if (isDesktop()) { renderDesktop(); return; }
+  ensureMobileShell();
+  renderTopbar();
+  routeMobile(location.hash || '#/');
+}
+/* pulihkan struktur shell mobile bila sebelumnya diganti shell desktop (resize) */
+function ensureMobileShell() {
+  if (!document.getElementById('view')) {
+    document.getElementById('app').innerHTML = `<header id="topbar"></header><main id="view"></main><nav id="bottomnav"></nav>`;
+  }
+}
+
+function vForgot() {
+  const view = document.getElementById('view');
+  view.innerHTML = `<div class="card" style="margin-top:20px"><h2>Reset Password</h2>
+    <div class="field"><label>Email</label><input id="f-email" type="email"></div>
+    <button class="btn block purple" onclick="doForgot()">Send Reset Link</button></div>`;
+}
+async function doForgot() {
+  try {
+    await api.post('/api/auth/forgot-password', { email: document.getElementById('f-email').value.trim() });
+    toast('If the email exists, a reset link was sent.', true);
+  } catch (e) { toast(e.message, false); }
+}
+
+window.addEventListener('hashchange', router);
+(async function init() {
+  applyMode();
+  renderTopbar();
+  renderNav('home');
+  await store.refreshUser();
+  await loadWishlist();
+  renderChrome();
+  if (!location.hash) location.hash = '#/';
+  router();
+})();
