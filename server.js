@@ -186,8 +186,16 @@ CREATE TABLE IF NOT EXISTS categories (
   icon TEXT NOT NULL DEFAULT '📦',
   active INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0,
+  parent_id TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );`);
+// Migrasi: subkategori (Toko-Game parity)
+try {
+  const cols = db.prepare("PRAGMA table_info(categories)").all().map(c => c.name);
+  if (!cols.includes('parent_id')) db.exec("ALTER TABLE categories ADD COLUMN parent_id TEXT NOT NULL DEFAULT ''");
+} catch {}
+// Helper kategori: sertakan parent_id
+const catRow = (r) => r ? { id: r.id, label: r.label, icon: r.icon, active: !!r.active, sort_order: r.sort_order, parent_id: r.parent_id || '' } : null;
 (function seedCategories() {
   const n = db.prepare('SELECT COUNT(*) c FROM categories').get().c;
   if (n > 0) return;
@@ -201,10 +209,10 @@ CREATE TABLE IF NOT EXISTS categories (
   console.log('[seed] categories: 3 kategori default');
 })();
 function allCategories() {
-  return db.prepare('SELECT id,label,icon,active,sort_order FROM categories ORDER BY sort_order,id').all();
+  return db.prepare('SELECT id,label,icon,active,sort_order,parent_id FROM categories ORDER BY sort_order,id').all();
 }
 function activeCategories() {
-  return db.prepare("SELECT id,label,icon FROM categories WHERE active = 1 ORDER BY sort_order,id").all();
+  return db.prepare("SELECT id,label,icon,parent_id FROM categories WHERE active = 1 ORDER BY sort_order,id").all();
 }
 function categoryIds() { return allCategories().map(c => c.id); }
 // Migrasi: hapus CHECK(category IN (...)) agar kategori bisa dinamis (rebuild tabel, idempoten)
@@ -1463,7 +1471,8 @@ app.get('/api/admin/settings', auth, requireAdmin, (req, res) => {
   res.json({ qris_configured: !!s, qris_merchant: s ? merchantName(s) : '', wa_cs: getSetting('wa_cs'), wa_cs_enabled: waCsEnabled(), pay_methods: allPayMethods() });
 });
 app.put('/api/admin/settings', auth, requireAdmin, (req, res) => {
-  const { qris_static, wa_cs, wa_cs_enabled, store_name, announcement, announcement_on, auto_complete_days, flash_sale_ends } = req.body || {};
+  const { qris_static, wa_cs, wa_cs_enabled, store_name, announcement, announcement_on, auto_complete_days, flash_sale_ends,
+    smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, google_client_id, google_client_secret } = req.body || {};
   let merchant = '';
   if (qris_static !== undefined) {
     const s = String(qris_static || '').trim();
@@ -1485,9 +1494,26 @@ app.put('/api/admin/settings', auth, requireAdmin, (req, res) => {
     set('auto_complete_days', String(d));
   }
   if (flash_sale_ends !== undefined) set('flash_sale_ends', String(flash_sale_ends || ''));
+  if (smtp_host !== undefined) set('smtp_host', String(smtp_host || '').trim());
+  if (smtp_port !== undefined) set('smtp_port', String(+smtp_port || 587));
+  if (smtp_user !== undefined) set('smtp_user', String(smtp_user || '').trim());
+  if (smtp_pass !== undefined) set('smtp_pass', String(smtp_pass || '').trim());
+  if (smtp_from !== undefined) set('smtp_from', String(smtp_from || '').trim());
+  if (google_client_id !== undefined) set('google_client_id', String(google_client_id || '').trim());
+  if (google_client_secret !== undefined) set('google_client_secret', String(google_client_secret || '').trim());
   res.json({ ok: true, qris_merchant: merchant, wa_cs: getSetting('wa_cs'), wa_cs_enabled: waCsEnabled(), pay_methods: allPayMethods() });
 });
 // GET pengaturan toko (admin)
+// Kirim email tes SMTP (admin)
+app.post('/api/admin/smtp/test', auth, requireAdmin, async (req, res) => {
+  try {
+    const t = smtpTransporter();
+    if (!t) return res.status(400).json({ error: 'SMTP belum dikonfigurasi' });
+    const to = req.user.email;
+    await t.sendMail({ from: smtpFrom(), to, subject: 'Tes SMTP PlayTopUp Store', text: 'Email tes dari panel admin PlayTopUp Store. Kalau kamu terima ini, SMTP sudah benar.' });
+    res.json({ ok: true, to });
+  } catch (e) { res.status(500).json({ error: 'Gagal kirim: ' + (e.message || e) }); }
+});
 app.get('/api/admin/store-settings', auth, requireAdmin, (req, res) => {
   res.json({
     store_name: getSetting('store_name') || 'PlayTopUp Store',
@@ -1495,6 +1521,16 @@ app.get('/api/admin/store-settings', auth, requireAdmin, (req, res) => {
     announcement_on: getSetting('announcement_on') === '1',
     auto_complete_days: parseInt(getSetting('auto_complete_days')) || 2,
     flash_sale_ends: getSetting('flash_sale_ends') || '',
+    qris_static: getSetting('qris_static') || '',
+    wa_cs: getSetting('wa_cs') || '',
+    wa_cs_enabled: waCsEnabled(),
+    smtp_host: getSetting('smtp_host') || '',
+    smtp_port: getSetting('smtp_port') || '587',
+    smtp_user: getSetting('smtp_user') || '',
+    smtp_from: getSetting('smtp_from') || '',
+    smtp_configured: !!(getSetting('smtp_host')),
+    google_client_id: getSetting('google_client_id') || '',
+    google_oauth_configured: !!(getSetting('google_client_id') && getSetting('google_client_secret')),
     categories: allCategories(),
   });
 });
@@ -1546,15 +1582,18 @@ app.delete('/api/admin/pay-methods/:id', auth, requireAdmin, (req, res) => {
 // ---- CRUD kategori produk (admin) ----
 function catById(id) { return db.prepare('SELECT * FROM categories WHERE id = ?').get(id); }
 app.post('/api/admin/categories', auth, requireAdmin, (req, res) => {
-  const { id, label, icon = '📦' } = req.body || {};
+  const { id, label, icon = '📦', parent_id = '' } = req.body || {};
   const rawId = id || label || '';
   const nid = String(rawId).trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').replace(/_+/g, '_').slice(0, 40);
   if (!nid || nid.length < 3) return res.status(400).json({ error: 'ID minimal 3 karakter (huruf/angka/_)' });
   if (!label || !String(label).trim()) return res.status(400).json({ error: 'Label wajib diisi' });
   if (catById(nid)) return res.status(400).json({ error: 'ID sudah dipakai' });
   const maxSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) m FROM categories').get().m;
-  db.prepare('INSERT INTO categories (id,label,icon,active,sort_order) VALUES (?,?,?,1,?)')
-    .run(nid, String(label).trim().slice(0, 40), String(icon).trim().slice(0, 8) || '📦', maxSort + 1);
+  const pid = String(parent_id || '').trim();
+  if (pid && !catById(pid)) return res.status(400).json({ error: 'Kategori induk tidak ditemukan' });
+  if (pid && catById(pid).parent_id) return res.status(400).json({ error: 'Subkategori tidak bisa punya anak lagi' });
+  db.prepare('INSERT INTO categories (id,label,icon,active,sort_order,parent_id) VALUES (?,?,?,1,?,?)')
+    .run(nid, String(label).trim().slice(0, 40), String(icon).trim().slice(0, 8) || '📦', maxSort + 1, pid);
   res.status(201).json({ category: catById(nid) });
 });
 app.put('/api/admin/categories/:id', auth, requireAdmin, (req, res) => {
@@ -1577,6 +1616,8 @@ app.put('/api/admin/categories/:id', auth, requireAdmin, (req, res) => {
 app.delete('/api/admin/categories/:id', auth, requireAdmin, (req, res) => {
   const c = catById(req.params.id);
   if (!c) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+  const kids = db.prepare('SELECT COUNT(*) c FROM categories WHERE parent_id = ?').get(c.id).c;
+  if (kids) return res.status(400).json({ error: `Kategori punya ${kids} subkategori — hapus dulu subkategorinya` });
   const used = db.prepare('SELECT COUNT(*) c FROM products WHERE category = ?').get(c.id).c;
   if (used) return res.status(400).json({ error: `Kategori dipakai ${used} produk — pindahkan dulu produknya` });
   if (c.active) {

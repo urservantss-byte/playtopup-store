@@ -1,7 +1,7 @@
 /* ===== PlayTopUp Store — views: admin panel ===== */
 const ADM_TABS = [
   ['dash', '📊 Dashboard'], ['orders', '📦 Orders'], ['products', '🎮 Products'],
-  ['vouchers', '🎟️ Vouchers'], ['banners', '🖼️ Banners'], ['tickets', '💬 Tickets'],
+  ['vouchers', '🎟️ Vouchers'], ['reports', '📈 Laporan'], ['banners', '🖼️ Banners'], ['tickets', '💬 Tickets'],
   ['users', '👥 Users'], ['settings', '⚙️ Settings'],
 ];
 function vAdmin(tab) {
@@ -12,13 +12,14 @@ function vAdmin(tab) {
     <div class="sec-head"><h2>⚙️ Admin Panel</h2></div>
     <div class="adm-tabs">${ADM_TABS.map(([k, l]) => `<button class="chip ${k === tab ? 'active' : ''}" onclick="go('#/admin/${k}')">${l}</button>`).join('')}</div>
     <div id="adm-body"><div class="skel" style="height:160px"></div></div>`;
-  ({ dash: admDash, orders: admOrders, products: admProducts, vouchers: admVouchers, banners: admBanners, tickets: admTickets, users: admUsers, settings: admSettings }[tab] || admDash)();
+  ({ dash: admDash, orders: admOrders, products: admProducts, vouchers: admVouchers, reports: admReports, banners: admBanners, tickets: admTickets, users: admUsers, settings: admSettings }[tab] || admDash)();
 }
 
 async function admDash() {
   const el = document.getElementById('adm-body');
   try {
-    const d = await api.get('/api/admin/stats');
+    const [d, s] = await Promise.all([api.get('/api/admin/stats'), api.get('/api/admin/store-settings').catch(() => ({}))]);
+    window._admQS = s || {};
     const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
     const sales = [];
     for (let i = 6; i >= 0; i--) {
@@ -27,7 +28,8 @@ async function admDash() {
       const row = (d.sales_7d || []).find((r) => r.d === key);
       sales.push({ label: days[dt.getDay()], t: row ? row.t : 0, c: row ? row.c : 0 });
     }
-    const maxT = Math.max(1, ...sales.map((s) => s.t));
+    const maxT = Math.max(1, ...sales.map((x) => x.t));
+    const qs = window._admQS;
     el.innerHTML = `
       <div class="adm-grid">
         <div class="stat"><div class="n">${rp(d.revenue_total || 0)}</div><div class="l">Revenue</div></div>
@@ -41,18 +43,82 @@ async function admDash() {
       <div class="card" style="margin-top:12px">
         <div style="font-weight:900;margin-bottom:10px">📈 Penjualan 7 Hari</div>
         <div style="display:flex;align-items:flex-end;gap:6px;height:120px">
-          ${sales.map((s) => `<div class="grow" style="display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end" title="${s.c} order • ${rp(s.t)}">
-            <div style="width:100%;max-width:34px;border-radius:6px 6px 3px 3px;background:var(--grad);height:${Math.max(4, Math.round((s.t / maxT) * 88))}px"></div>
-            <div class="muted" style="font-size:10px;font-weight:800">${s.label}</div></div>`).join('')}
+          ${sales.map((x) => `<div class="grow" style="display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end" title="${x.c} order • ${rp(x.t)}">
+            <div style="width:100%;max-width:34px;border-radius:6px 6px 3px 3px;background:var(--grad);height:${Math.max(4, Math.round((x.t / maxT) * 88))}px"></div>
+            <div class="muted" style="font-size:10px;font-weight:800">${x.label}</div></div>`).join('')}
         </div>
       </div>
       <div class="card" style="margin-top:12px">
         <div class="row" style="margin-bottom:8px"><div class="grow" style="font-weight:900">🕐 Pesanan Terbaru</div><button class="btn sm ghost" onclick="go('#/admin/orders')">Semua →</button></div>
         ${(d.recent_orders || []).map((o) => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line);font-size:13px"><b>#${o.id}</b><span class="grow muted" style="font-weight:600">${esc(o.user_name || o.email || '')}</span>${statusPill(o.status)}<b>${rp(o.total)}</b></div>`).join('') || '<div class="muted">Belum ada pesanan.</div>'}
       </div>
+      <div class="card" style="margin-top:12px">
+        <div style="font-weight:900;margin-bottom:10px">⚙️ Pengaturan Cepat</div>
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">⚡ QRIS Statis ${qs.qris_static ? '<span class="chip" style="background:#dcfce7;color:#15803d">Aktif</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">Mati</span>'}</div>
+        <div class="field"><textarea id="qs-qris" rows="2" placeholder="Tempel string QRIS hasil scan…" style="font-size:11px">${esc(qs.qris_static || '')}</textarea></div>
+        <div class="divider"></div>
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">💬 WhatsApp CS</div>
+        <div class="row" style="gap:8px"><input id="qs-wa" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="62812…" value="${esc(qs.wa_cs || '')}">
+        <button class="btn sm ${qs.wa_cs_enabled ? 'purple' : 'ghost'}" onclick="admQSToggleWA(${qs.wa_cs_enabled ? 0 : 1})">${qs.wa_cs_enabled ? '✅ Tampil' : '⏸ Sembunyi'}</button></div>
+        <div class="divider"></div>
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">📧 Email SMTP ${qs.smtp_configured ? '<span class="chip" style="background:#dcfce7;color:#15803d">Aktif</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">Belum</span>'}</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <input id="qs-smtp-h" class="grow" style="min-width:120px;border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="Host (smtp.gmail.com)" value="${esc(qs.smtp_host || '')}">
+          <input id="qs-smtp-p" style="width:80px;border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="Port" value="${esc(qs.smtp_port || '587')}">
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input id="qs-smtp-u" class="grow" style="min-width:120px;border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="Username" value="${esc(qs.smtp_user || '')}">
+          <input id="qs-smtp-pw" type="password" class="grow" style="min-width:120px;border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="Password / App password">
+        </div>
+        <div class="row" style="gap:8px;margin-top:8px">
+          <input id="qs-smtp-f" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="From (opsional)" value="${esc(qs.smtp_from || '')}">
+          <button class="btn sm ghost" onclick="admQSSMTPTest()">📨 Kirim Tes</button>
+        </div>
+        <div class="divider"></div>
+        <div style="font-weight:800;font-size:13px;margin-bottom:6px">🔑 Login Google OAuth ${qs.google_oauth_configured ? '<span class="chip" style="background:#dcfce7;color:#15803d">Aktif</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">Belum</span>'}</div>
+        <div class="field"><label>Client ID</label><input id="qs-gid" value="${esc(qs.google_client_id || '')}"></div>
+        <div class="field"><label>Client Secret</label><input id="qs-gsec" type="password" placeholder="${qs.google_oauth_configured ? '•••••••• (terisi)' : 'Client secret'}"></div>
+        <div style="height:10px"></div>
+        <button class="btn block purple" onclick="admQSSave()">💾 Simpan Pengaturan Cepat</button>
+      </div>
       <div style="height:12px"></div>
       <button class="btn block purple" onclick="go('#/admin/orders')">Manage Orders →</button>`;
   } catch (e) { el.innerHTML = `<div class="empty">Failed to load stats.</div>`; }
+}
+async function admQSSave() {
+  try {
+    const gsec = document.getElementById('qs-gsec').value.trim();
+    const body = {
+      qris_static: document.getElementById('qs-qris').value.trim(),
+      wa_cs: document.getElementById('qs-wa').value.trim(),
+      smtp_host: document.getElementById('qs-smtp-h').value.trim(),
+      smtp_port: document.getElementById('qs-smtp-p').value.trim(),
+      smtp_user: document.getElementById('qs-smtp-u').value.trim(),
+      smtp_from: document.getElementById('qs-smtp-f').value.trim(),
+      google_client_id: document.getElementById('qs-gid').value.trim(),
+    };
+    const pw = document.getElementById('qs-smtp-pw').value.trim();
+    if (pw) body.smtp_pass = pw;
+    if (gsec) body.google_client_secret = gsec;
+    await api.put('/api/admin/settings', body);
+    toast('Pengaturan cepat disimpan', true);
+    admDash();
+  } catch (e) { toast(e.message, false); }
+}
+async function admQSToggleWA(on) {
+  try {
+    const wa = document.getElementById('qs-wa').value.trim();
+    await api.put('/api/admin/settings', { wa_cs: wa, wa_cs_enabled: !!on });
+    toast('WhatsApp CS ' + (on ? 'ditampilkan' : 'disembunyikan'), true);
+    admDash();
+  } catch (e) { toast(e.message, false); }
+}
+async function admQSSMTPTest() {
+  try {
+    toast('Mengirim email tes…', true);
+    const d = await api.post('/api/admin/smtp/test', {});
+    toast('Email tes terkirim ke ' + d.to, true);
+  } catch (e) { toast(e.message, false); }
 }
 
 async function admOrders() {
@@ -70,34 +136,57 @@ function renderAdmOrders() {
   const el = document.getElementById('adm-body');
   const all = window._admOrders || [];
   const f = window._admOrderFilter || 'all';
-  const q = (window._admOrderQ || '').toLowerCase();
   const counts = {};
   all.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
   const statuses = ['pending', 'proses', 'delivery', 'selesai', 'dibatalkan'];
-  let list = all.filter((o) => (f === 'all' || o.status === f));
-  if (q) list = list.filter((o) => String(o.id).includes(q) || (o.items || []).some((i) => (i.name || '').toLowerCase().includes(q)) || String(o.user_email || o.email || '').toLowerCase().includes(q));
   el.innerHTML = `
-    <div class="row" style="margin-bottom:10px"><input id="ao-q" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="🔍 Cari ID / nama item / email…" value="${esc(window._admOrderQ || '')}" oninput="window._admOrderQ=this.value;renderAdmOrdersList()"></div>
+    <div class="row" style="margin-bottom:10px"><input id="ao-q" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-family:inherit;background:var(--card-solid);color:var(--ink)" placeholder="🔍 Cari ID / nama item / email…" value="${esc(window._admOrderQ || '')}" oninput="window._admOrderQ=this.value;window._admOrderPage=1;renderAdmOrdersList()"></div>
     <div class="adm-tabs" style="margin-bottom:10px">
-      <button class="chip ${f === 'all' ? 'active' : ''}" onclick="window._admOrderFilter='all';renderAdmOrders()">Semua (${all.length})</button>
-      ${statuses.map((s) => `<button class="chip ${f === s ? 'active' : ''}" onclick="window._admOrderFilter='${s}';renderAdmOrders()">${s} (${counts[s] || 0})</button>`).join('')}
+      <button class="chip ${f === 'all' ? 'active' : ''}" onclick="window._admOrderFilter='all';window._admOrderPage=1;renderAdmOrders()">Semua (${all.length})</button>
+      ${statuses.map((s) => `<button class="chip ${f === s ? 'active' : ''}" onclick="window._admOrderFilter='${s}';window._admOrderPage=1;renderAdmOrders()">${s} (${counts[s] || 0})</button>`).join('')}
     </div>
     <div id="ao-list"></div>`;
   renderAdmOrdersList();
 }
-function renderAdmOrdersList() {
-  const el = document.getElementById('ao-list');
-  if (!el) return;
+function admOrderFiltered() {
   const all = window._admOrders || [];
   const f = window._admOrderFilter || 'all';
   const q = (window._admOrderQ || '').toLowerCase();
   let list = all.filter((o) => (f === 'all' || o.status === f));
   if (q) list = list.filter((o) => String(o.id).includes(q) || (o.items || []).some((i) => (i.name || '').toLowerCase().includes(q)) || String(o.user_email || o.email || '').toLowerCase().includes(q));
-  el.innerHTML = list.length ? `<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th>#</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr>` +
-    list.map((o) => `<tr><td><b>#${o.id}</b></td><td style="font-size:12px">${esc((o.items || []).map((i) => i.name).join(', '))}</td>
-    <td><b>${rp(o.total)}</b></td><td>${statusPill(o.status)}</td>
-    <td><button class="btn sm ghost" onclick="admOrderDetail(${o.id})">Open</button></td></tr>`).join('') + `</table></div>`
+  return list;
+}
+function renderAdmOrdersList() {
+  const el = document.getElementById('ao-list');
+  if (!el) return;
+  const list = admOrderFiltered();
+  const perPage = 20;
+  const pages = Math.max(1, Math.ceil(list.length / perPage));
+  let pg = Math.min(window._admOrderPage || 1, pages);
+  window._admOrderPage = pg;
+  const rows = list.slice((pg - 1) * perPage, pg * perPage);
+  el.innerHTML = rows.length ? `<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th>#</th><th>Items</th><th>Total</th><th>Bukti</th><th>Status</th><th></th></tr>` +
+    rows.map((o) => `<tr><td><b>#${o.id}</b></td><td style="font-size:12px">${esc((o.items || []).map((i) => i.name).join(', '))}</td>
+    <td><b>${rp(o.total)}</b></td>
+    <td>${o.proof_path ? `<a href="${esc(o.proof_path)}" target="_blank" style="font-size:12px;font-weight:800">🧾 lihat</a>` : '<span class="muted">—</span>'}</td>
+    <td>${statusPill(o.status)}</td>
+    <td style="white-space:nowrap">
+      ${o.status === 'proses' ? `<button class="btn sm purple" title="Input data & delivery" onclick="admOrderDetail(${o.id})">📤</button> ` : ''}
+      ${['pending', 'proses'].includes(o.status) ? `<button class="btn sm line" style="color:#b91c1c" title="Batal paksa" onclick="admForceCancel(${o.id})">⚠️</button> ` : ''}
+      <button class="btn sm ghost" onclick="admOrderDetail(${o.id})">Open</button>
+    </td></tr>`).join('') + `</table></div>
+    ${pages > 1 ? `<div class="row" style="justify-content:center;gap:6px;margin-top:10px">
+      <button class="btn sm ghost" ${pg <= 1 ? 'disabled style="opacity:.4"' : ''} onclick="window._admOrderPage=${pg - 1};renderAdmOrdersList()">‹</button>
+      ${Array.from({ length: pages }, (_, i) => i + 1).map((p) => `<button class="btn sm ${p === pg ? 'purple' : 'ghost'}" onclick="window._admOrderPage=${p};renderAdmOrdersList()">${p}</button>`).join('')}
+      <button class="btn sm ghost" ${pg >= pages ? 'disabled style="opacity:.4"' : ''} onclick="window._admOrderPage=${pg + 1};renderAdmOrdersList()">›</button>
+    </div>` : ''}`
     : `<div class="empty"><div class="big">📦</div>No orders found.</div>`;
+}
+async function admForceCancel(id) {
+  confirmModal('Batal paksa pesanan?', `Batalkan pesanan #${id}? Stok/voucher akan dikembalikan.`, async () => {
+    try { await api.patch(`/api/orders/${id}/status`, { status: 'dibatalkan', force: true }); toast(`Order #${id} dibatalkan`, true); admOrders(); }
+    catch (e) { toast(e.message, false); }
+  });
 }
 async function admOrderDetail(id) {
   try {
@@ -186,7 +275,12 @@ function renderAdmProdList() {
       <td><b>${esc(p.name)}</b><br><span class="muted" style="font-size:11px">${esc(p.category || '')}</span>${low ? ' <span class="chip" style="background:#fee2e2;color:#b91c1c">⚠️ rendah</span>' : ''}</td>
       <td><b>${rp(p.price)}</b>${p.discount ? `<br><span class="chip" style="background:#fef3c7;color:#b45309">-${p.discount}%</span>` : ''}</td>
       <td><b>${p.stock}</b> <button class="btn sm ghost" title="Tambah 10 stok" onclick="admQuickStock(${p.id},10)">+10</button></td>
-      <td style="white-space:nowrap"><button class="btn sm ghost" onclick="admProductForm(${p.id})">Edit</button></td></tr>`;
+      <td style="white-space:nowrap">
+        <button class="btn sm ghost" title="Stok kode voucher" onclick="admProductCodes(${p.id})">🎫</button>
+        <button class="btn sm ghost" title="Stok akun" onclick="admProductAccounts(${p.id})">👤</button>
+        <button class="btn sm ghost" onclick="admProductForm(${p.id})">✏️</button>
+        <button class="btn sm line" style="color:#b91c1c" title="Hapus" onclick="admDelProduct(${p.id})">🗑️</button>
+      </td></tr>`;
     }).join('') + `</table></div>`
     : `<div class="empty"><div class="big">🎮</div>No products found.</div>`;
 }
@@ -225,8 +319,37 @@ async function admBulkStock(mode) {
     admProducts();
   } catch (e) { toast(e.message, false); }
 }
-async function admProductForm(id) {
-  let p = { name: '', price: 0, stock: 10, category: 'topup', tags: '', description: '', discount: 0, image_url: '' };
+/* ---- Stok kode voucher (pool auto-delivery) ---- */
+async function admProductCodes(pid) {
+  try {
+    const d = await api.get(`/api/admin/products/${pid}/codes`);
+    const codes = d.codes || [];
+    openModal(`<button class="mclose" onclick="closeModal()">✕</button>
+      <h3 style="margin-top:0">🎫 Stok Kode — Produk #${pid}</h3>
+      <div class="muted" style="font-size:13px;margin-bottom:8px">${d.available} kode tersedia • kode otomatis terkirim saat delivery • stok produk mengikuti pool</div>
+      <div style="max-height:220px;overflow:auto;margin-bottom:10px">
+      ${codes.map((c) => `<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line);font-size:13px">
+        <code class="grow" style="${c.used ? 'text-decoration:line-through;opacity:.5' : 'font-weight:800'}">${esc(c.code)}</code>
+        ${c.used ? `<span class="muted">#${c.order_id}</span>` : `<button class="btn sm line" style="color:#b91c1c" onclick="admDelCode(${pid},${c.id})">✕</button>`}
+      </div>`).join('') || '<div class="muted">Belum ada kode.</div>'}</div>
+      <div class="field"><label>Tambah kode (satu per baris)</label><textarea id="ac-codes" rows="4" placeholder="KODE1&#10;KODE2"></textarea></div>
+      <button class="btn block purple" onclick="admAddCodes(${pid})">+ Tambah Kode</button>`);
+  } catch (e) { toast(e.message, false); }
+}
+async function admAddCodes(pid) {
+  const v = document.getElementById('ac-codes').value.trim();
+  if (!v) { toast('Isi kode dulu', false); return; }
+  try {
+    const d = await api.post(`/api/admin/products/${pid}/codes`, { codes: v });
+    toast(d.added + ' kode ditambahkan', true);
+    admProductCodes(pid); admProducts();
+  } catch (e) { toast(e.message, false); }
+}
+async function admDelCode(pid, cid) {
+  try { await api.del(`/api/admin/products/${pid}/codes/${cid}`); admProductCodes(pid); admProducts(); }
+  catch (e) { toast(e.message, false); }
+}
+async function admProductForm(id) {  let p = { name: '', price: 0, stock: 10, category: 'topup', tags: '', description: '', discount: 0, image_url: '' };
   let cats = [];
   try { cats = (await api.get('/api/settings/public')).categories || []; } catch {}
   if (id) { try { p = (await api.get('/api/products/' + id)).product; } catch (e) { toast(e.message, false); return; } }
@@ -374,6 +497,80 @@ async function admDelVoucher(code) {
   });
 }
 
+/* ---- Laporan penjualan ---- */
+function admRepDates() {
+  const fmt = (dt) => dt.toISOString().slice(0, 10);
+  const to = new Date();
+  const days = window._repDays || 30;
+  const from = new Date(Date.now() - (days - 1) * 864e5);
+  return { from: window._repFrom || fmt(from), to: window._repTo || fmt(to) };
+}
+async function admReports() {
+  const el = document.getElementById('adm-body');
+  const { from, to } = admRepDates();
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-weight:900;margin-bottom:10px">📈 Laporan Penjualan</div>
+      <div class="adm-tabs" style="margin-bottom:10px">
+        ${[7, 30, 90].map((n) => `<button class="chip ${(window._repDays || 30) === n && !window._repCustom ? 'active' : ''}" onclick="window._repDays=${n};window._repCustom=false;window._repFrom='';window._repTo='';admReports()">${n} hari</button>`).join('')}
+      </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <input id="rep-from" type="date" value="${from}" style="border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" onchange="window._repCustom=true">
+        <input id="rep-to" type="date" value="${to}" style="border:2px solid var(--line);border-radius:12px;padding:10px;font-family:inherit;background:var(--card-solid);color:var(--ink)" onchange="window._repCustom=true">
+        <button class="btn sm purple" onclick="window._repFrom=document.getElementById('rep-from').value;window._repTo=document.getElementById('rep-to').value;admReports()">Tampilkan</button>
+        <button class="btn sm ghost" onclick="admRepCSV()">📥 Export CSV</button>
+      </div>
+    </div>
+    <div id="rep-body"><div class="skel" style="height:120px"></div></div>`;
+  try {
+    const d = await api.get(`/api/admin/reports/sales?from=${from}&to=${to}`);
+    const s = d.summary || {};
+    const body = document.getElementById('rep-body');
+    if (!body) return;
+    body.innerHTML = `
+      <div class="adm-grid" style="margin-bottom:12px">
+        <div class="stat"><div class="n">${rp(s.revenue || 0)}</div><div class="l">Total Omzet</div></div>
+        <div class="stat"><div class="n">${s.orders || 0}</div><div class="l">Pesanan</div></div>
+        <div class="stat"><div class="n">${rp(Math.round(s.avg_order || 0))}</div><div class="l">Rata-rata / Pesanan</div></div>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-weight:900;margin-bottom:8px">🏆 Produk Terlaris</div>
+        <div style="overflow-x:auto"><table class="tbl"><tr><th>Produk</th><th>Terjual</th><th>Omzet</th></tr>
+        ${(d.topProducts || []).map((p) => `<tr><td style="font-weight:700">${esc(p.name || ('#' + p.pid))}</td><td>${p.qty}</td><td><b>${rp(p.revenue)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Tidak ada data.</td></tr>'}
+        </table></div>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="font-weight:900;margin-bottom:8px">💳 Per Metode Bayar</div>
+        <div style="overflow-x:auto"><table class="tbl"><tr><th>Metode</th><th>Pesanan</th><th>Omzet</th></tr>
+        ${(d.byPayment || []).map((m) => `<tr><td style="font-weight:700">${esc(m.m || '-')}</td><td>${m.orders}</td><td><b>${rp(m.revenue)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Tidak ada data.</td></tr>'}
+        </table></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:900;margin-bottom:8px">📅 Per Hari</div>
+        <div style="overflow-x:auto"><table class="tbl"><tr><th>Tanggal</th><th>Pesanan</th><th>Omzet</th></tr>
+        ${(d.byDay || []).map((x) => `<tr><td style="font-weight:700">${esc(x.d)}</td><td>${x.orders}</td><td><b>${rp(x.revenue)}</b></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Tidak ada data.</td></tr>'}
+        </table></div>
+      </div>`;
+  } catch (e) {
+    const body = document.getElementById('rep-body');
+    if (body) body.innerHTML = `<div class="empty">Failed to load.</div>`;
+  }
+}
+async function admRepCSV() {
+  const { from, to } = admRepDates();
+  try {
+    toast('Menyiapkan CSV…', true);
+    const r = await fetch(`/api/admin/reports/sales.csv?from=${from}&to=${to}`, { headers: { Authorization: 'Bearer ' + (localStorage.getItem('ptu_token') || '') } });
+    if (!r.ok) throw new Error('Gagal');
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `laporan-${from}_${to}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { toast('Gagal export CSV', false); }
+}
+
 async function admBanners() {
   const el = document.getElementById('adm-body');
   el.innerHTML = `<button class="btn purple block" style="margin-bottom:12px" onclick="admBannerForm()">+ Add Banner</button><div class="skel" style="height:100px"></div>`;
@@ -441,13 +638,31 @@ async function admTickets() {
   el.innerHTML = `<div class="skel" style="height:70px"></div><div class="skel" style="height:70px;margin-top:10px"></div>`;
   try {
     const d = await api.get('/api/admin/tickets');
-    const list = d.tickets || [];
-    el.innerHTML = list.length ? list.map((t) => `
-      <div class="card" style="margin-bottom:10px;cursor:pointer" onclick="admTicketDetail(${t.id})">
-        <div class="row"><b class="grow">${esc(t.subject)}</b>${statusPill(t.status === 'open' ? 'pending' : 'selesai')}</div>
-        <div class="muted" style="font-size:12px;font-weight:700">${esc(t.user_name || t.user_email || '')} • ${esc(t.created_at || '')}</div>
-      </div>`).join('') : `<div class="empty"><div class="big">💬</div>No tickets.</div>`;
+    window._admTickets = d.tickets || [];
+    window._admTicketFilter = window._admTicketFilter || 'all';
+    renderAdmTickets();
   } catch { el.innerHTML = `<div class="empty">Failed to load.</div>`; }
+}
+function renderAdmTickets() {
+  const el = document.getElementById('adm-body');
+  const all = window._admTickets || [];
+  const f = window._admTicketFilter || 'all';
+  const counts = { open: 0, answered: 0, closed: 0 };
+  all.forEach((t) => { if (counts[t.status] !== undefined) counts[t.status]++; });
+  const filters = [['open', 'Butuh Balasan'], ['answered', 'Terjawab'], ['closed', 'Ditutup'], ['all', 'Semua']];
+  const list = all.filter((t) => f === 'all' || t.status === f);
+  const pill = (s) => s === 'open' ? '<span class="chip" style="background:#fef3c7;color:#b45309">Butuh Balasan</span>'
+    : s === 'answered' ? '<span class="chip" style="background:#dbeafe;color:#1d4ed8">Terjawab</span>'
+    : '<span class="chip" style="background:#e5e7eb;color:#4b5563">Ditutup</span>';
+  el.innerHTML = `
+    <div class="adm-tabs" style="margin-bottom:10px">
+      ${filters.map(([k, l]) => `<button class="chip ${f === k ? 'active' : ''}" onclick="window._admTicketFilter='${k}';renderAdmTickets()">${l} (${k === 'all' ? all.length : counts[k]})</button>`).join('')}
+    </div>
+    ${list.length ? list.map((t) => `
+      <div class="card" style="margin-bottom:10px;cursor:pointer" onclick="admTicketDetail(${t.id})">
+        <div class="row"><b class="grow">#${t.id} ${esc(t.subject)}</b>${pill(t.status)}</div>
+        <div class="muted" style="font-size:12px;font-weight:700">${esc(t.user_name || t.user_email || '')}${t.order_id ? ` • order #${t.order_id}` : ''} • ${esc(t.created_at || '')}</div>
+      </div>`).join('') : `<div class="empty"><div class="big">💬</div>No tickets.</div>`}`;
 }
 async function admTicketDetail(id) {
   try {
@@ -456,13 +671,20 @@ async function admTicketDetail(id) {
     openModal(`<button class="mclose" onclick="closeModal()">✕</button>
       <h3 style="margin-top:0">${esc(t.subject)}</h3>
       ${msgs.map((m) => `<div class="ticket-msg ${m.is_admin ? '' : 'me'}"><div class="who">${m.is_admin ? '🛡️ You (admin)' : esc(t.user_name || 'User')} • ${esc(m.created_at || '')}</div><div style="font-size:14px">${esc(m.message)}</div></div>`).join('')}
-      <div class="row" style="margin-top:8px"><input id="adm-tr" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-family:inherit" placeholder="Reply…"><button class="btn sm purple" onclick="admReplyTicket(${id})">Send</button></div>`);
+      <div class="row" style="margin-top:8px"><input id="adm-tr" class="grow" style="border:2px solid var(--line);border-radius:12px;padding:10px 12px;font-family:inherit" placeholder="Reply…"><button class="btn sm purple" onclick="admReplyTicket(${id})">Send</button></div>
+      <div class="row" style="margin-top:8px"><span class="grow"></span>
+      ${t.status !== 'closed' ? `<button class="btn sm ghost" onclick="admTicketStatus(${id},'closed')">🔒 Tutup Tiket</button>` : `<button class="btn sm ghost" onclick="admTicketStatus(${id},'open')">🔓 Buka Lagi</button>`}
+      </div>`);
   } catch (e) { toast(e.message, false); }
 }
 async function admReplyTicket(id) {
   const v = document.getElementById('adm-tr').value.trim();
   if (!v) return;
   try { await api.post(`/api/admin/tickets/${id}/reply`, { message: v }); admTicketDetail(id); }
+  catch (e) { toast(e.message, false); }
+}
+async function admTicketStatus(id, status) {
+  try { await api.patch(`/api/admin/tickets/${id}`, { status }); closeModal(); toast('Tiket #' + id + ' → ' + status, true); admTickets(); }
   catch (e) { toast(e.message, false); }
 }
 
@@ -473,6 +695,7 @@ async function admUsers() {
     const d = await api.get('/api/users');
     window._admUsers = d.users || [];
     window._admUserQ = window._admUserQ || '';
+    try { const me = await api.get('/api/auth/me'); window._admMeId = me.user && me.user.id; } catch {}
     renderAdmUsers();
   } catch { el.innerHTML = `<div class="empty">Failed to load.</div>`; }
 }
@@ -489,10 +712,12 @@ function renderAdmUserList() {
   const el = document.getElementById('au-list');
   if (!el) return;
   const q = (window._admUserQ || '').toLowerCase();
+  const me = window._admMeId;
   const list = (window._admUsers || []).filter((u) => !q || (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q));
   el.innerHTML = `<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th>User</th><th>Email</th><th>Role</th><th></th></tr>` +
-    list.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td style="font-size:12px">${esc(u.email)}</td><td>${u.role === 'admin' ? '👑 admin' : 'user'}</td>
-    <td>${u.role !== 'admin' ? `<button class="btn sm ghost" onclick="admMakeAdmin(${u.id})">Make admin</button>` : ''}</td></tr>`).join('') + `</table></div>`;
+    list.map((u) => `<tr><td><b>${esc(u.name)}</b>${u.id === me ? ' <span class="muted" style="font-size:11px">(kamu)</span>' : ''}<br>${u.email_verified ? '<span class="chip" style="background:#dcfce7;color:#15803d">✓ terverifikasi</span>' : '<span class="chip" style="background:#fee2e2;color:#b91c1c">! belum verifikasi</span>'}</td>
+    <td style="font-size:12px">${esc(u.email)}</td><td>${u.role === 'admin' ? '👑 admin' : 'user'}</td>
+    <td>${u.role !== 'admin' ? `<button class="btn sm ghost" onclick="admMakeAdmin(${u.id})">Jadikan Admin</button>` : ''}</td></tr>`).join('') + `</table></div>`;
 }
 async function admMakeAdmin(id) {
   confirmModal('Make admin?', 'Grant admin access to this user?', async () => {
@@ -510,6 +735,8 @@ async function admSettings() {
       api.get('/api/admin/pay-methods').catch(() => ({ methods: [] })),
     ]);
     window._admPayMethods = pm.methods || [];
+    window._admCatsFull = d.categories || [];
+    window._admCatOpen = window._admCatOpen || {};
     el.innerHTML = `
       <div class="card">
         <div style="font-weight:900;margin-bottom:8px">🏪 Store</div>
@@ -522,10 +749,7 @@ async function admSettings() {
       </div>
       <div class="card" style="margin-top:12px">
         <div class="row" style="margin-bottom:8px"><div class="grow" style="font-weight:900">🗂️ Categories</div><button class="btn sm purple" onclick="admCatForm()">+ Add</button></div>
-        <div id="cat-admin">${(d.categories || []).map((c) => `<div class="row" style="margin-bottom:8px;gap:6px"><span class="grow" style="font-weight:700">${esc(c.icon || '')} ${esc(c.label)} <span class="muted">(${esc(c.id)})</span></span>
-          <button class="btn sm ghost" onclick="admToggleCat('${esc(c.id)}',${c.active ? 0 : 1})">${c.active ? '✅' : '⏸'}</button>
-          <button class="btn sm ghost" onclick="admCatForm('${esc(c.id)}')">✏️</button>
-          <button class="btn sm line" style="color:#b91c1c" onclick="admDelCat('${esc(c.id)}')">✕</button></div>`).join('')}</div>
+        <div id="cat-admin"></div>
       </div>
       <div class="card" style="margin-top:12px">
         <div class="row" style="margin-bottom:8px"><div class="grow" style="font-weight:900">💳 Payment Methods</div><button class="btn sm purple" onclick="admPmForm()">+ Add</button></div>
@@ -534,7 +758,39 @@ async function admSettings() {
           <button class="btn sm ghost" onclick="admPmForm('${esc(m.id)}')">✏️</button>
           <button class="btn sm line" style="color:#b91c1c" onclick="admDelPm('${esc(m.id)}')">✕</button></div>`).join('') || '<div class="muted">No payment methods.</div>'}</div>
       </div>`;
+    renderAdmCats();
   } catch { el.innerHTML = `<div class="empty">Failed to load.</div>`; }
+}
+/* ---- Kategori nested (expand/collapse + subkategori) ---- */
+function renderAdmCats() {
+  const el = document.getElementById('cat-admin');
+  if (!el) return;
+  const all = window._admCatsFull || [];
+  const open = window._admCatOpen || {};
+  const tops = all.filter((c) => !c.parent_id);
+  const kidsOf = (pid) => all.filter((c) => c.parent_id === pid);
+  const rowBtns = (c) => `
+    <button class="btn sm ghost" onclick="event.stopPropagation();admCatForm('','${esc(c.id)}')" title="Tambah subkategori">＋Sub</button>
+    <button class="btn sm ghost" onclick="event.stopPropagation();admToggleCat('${esc(c.id)}',${c.active ? 0 : 1})">${c.active ? '✅' : '⏸'}</button>
+    <button class="btn sm ghost" onclick="event.stopPropagation();admCatForm('${esc(c.id)}')">✏️</button>
+    <button class="btn sm line" style="color:#b91c1c" onclick="event.stopPropagation();admDelCat('${esc(c.id)}')">✕</button>`;
+  el.innerHTML = tops.map((c) => {
+    const kids = kidsOf(c.id);
+    const isOpen = !!open[c.id];
+    return `<div style="margin-bottom:6px">
+      <div class="row" style="gap:6px;cursor:pointer" onclick="window._admCatOpen['${esc(c.id)}']=${isOpen ? 'false' : 'true'};renderAdmCats()">
+        <span style="font-weight:800">${kids.length ? (isOpen ? '▾' : '▸') : '•'}</span>
+        <span class="grow" style="font-weight:700">${esc(c.icon || '')} ${esc(c.label)} <span class="muted">(${esc(c.id)})</span>${kids.length ? ` <span class="muted" style="font-size:11px">${kids.length} sub</span>` : ''}</span>
+        ${rowBtns(c)}
+      </div>
+      ${isOpen && kids.length ? `<div style="margin-left:22px;border-left:2px solid var(--line);padding-left:10px;margin-top:6px">
+        ${kids.map((k) => `<div class="row" style="margin-bottom:6px;gap:6px"><span class="grow" style="font-weight:600;font-size:13px">↳ ${esc(k.icon || '')} ${esc(k.label)} <span class="muted">(${esc(k.id)})</span></span>
+          <button class="btn sm ghost" onclick="admToggleCat('${esc(k.id)}',${k.active ? 0 : 1})">${k.active ? '✅' : '⏸'}</button>
+          <button class="btn sm ghost" onclick="admCatForm('${esc(k.id)}')">✏️</button>
+          <button class="btn sm line" style="color:#b91c1c" onclick="admDelCat('${esc(k.id)}')">✕</button></div>`).join('')}
+      </div>` : ''}
+    </div>`;
+  }).join('') || '<div class="muted">Belum ada kategori.</div>';
 }
 async function admToggleAnn(on) {
   try { await api.put('/api/admin/settings', { announcement_on: !!on }); admSettings(); }
@@ -552,19 +808,24 @@ async function admSaveSettings() {
   } catch (e) { toast(e.message, false); }
 }
 /* ---- Kategori ---- */
-function admCatForm(id) {
-  openModal(`<button class="mclose" onclick="closeModal()">✕</button><h3 style="margin-top:0">${id ? 'Edit' : 'Add'} Category</h3>
-    <div class="field"><label>Label</label><input id="ac-label" placeholder="Top Up Game"></div>
+function admCatForm(id, parentId) {
+  const tops = (window._admCatsFull || []).filter((c) => !c.parent_id);
+  openModal(`<button class="mclose" onclick="closeModal()">✕</button><h3 style="margin-top:0">${id ? 'Edit' : parentId ? 'Add Subcategory' : 'Add'} Category${parentId ? ' <span class="muted" style="font-size:13px">di bawah ' + esc((tops.find((c) => c.id === parentId) || {}).label || parentId) + '</span>' : ''}</h3>
+    <div class="field"><label>Label</label><input id="ac-label" placeholder="Mobile Legends"></div>
     <div class="field"><label>Icon (emoji)</label><input id="ac-icon" placeholder="⚡" maxlength="8"></div>
-    <button class="btn block purple" onclick="admSaveCat('${id || ''}')">Save</button>`);
+    ${!id && !parentId ? `<div class="field"><label>Induk (opsional — jadikan subkategori)</label><select id="ac-parent"><option value="">— Kategori utama —</option>${tops.map((c) => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}</select></div>` : ''}
+    <button class="btn block purple" onclick="admSaveCat('${id || ''}','${parentId || ''}')">Save</button>`);
 }
-async function admSaveCat(id) {
+async function admSaveCat(id, parentId) {
   const label = document.getElementById('ac-label').value.trim();
   const icon = document.getElementById('ac-icon').value.trim() || '📦';
   if (!label) { toast('Label required', false); return; }
   try {
     if (id) await api.put('/api/admin/categories/' + encodeURIComponent(id), { label, icon });
-    else await api.post('/api/admin/categories', { label, icon });
+    else {
+      const pel = document.getElementById('ac-parent');
+      await api.post('/api/admin/categories', { label, icon, parent_id: parentId || (pel ? pel.value : '') });
+    }
     closeModal(); toast('Saved', true); admSettings();
   } catch (e) { toast(e.message, false); }
 }

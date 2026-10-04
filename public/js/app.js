@@ -14,20 +14,18 @@ function renderTopbar() {
   const tb = document.getElementById('topbar');
   if (!tb) return;
   const u = store.user;
+  const cc = store.cartCount();
   tb.innerHTML = `
     <div class="tb-row">
       <a class="logo" href="#/">
         <span class="logo-badge">🎮</span>
         <span class="logo-text"><b>PLAYTOPUP</b><span>STORE</span></span>
       </a>
-      <div class="tb-spacer"></div>
+      <div class="tb-qwrap"><input id="tb-q" placeholder="Cari diamond, voucher…" onkeydown="if(event.key==='Enter')doSearch()" aria-label="Search"></div>
       <button class="icon-btn" onclick="toggleTheme()" aria-label="Theme">${themeIcon()}</button>
-      <button class="icon-btn" onclick="toggleSearch()" aria-label="Search">🔍</button>
+      <button class="icon-btn" onclick="go('#/cart')" aria-label="Cart">🛒${cc ? `<span class="badge">${cc > 9 ? '9+' : cc}</span>` : ''}</button>
       <button class="icon-btn" onclick="go('#/notif')" aria-label="Notifications">🔔${window._unread ? `<span class="badge">${window._unread > 9 ? '9+' : window._unread}</span>` : (u ? '<span class="dot"></span>' : '')}</button>
-    </div>
-    <div class="tb-search" id="tb-search" style="display:none">
-      <input id="tb-q" placeholder="Search games, diamonds, vouchers…" onkeydown="if(event.key==='Enter')doSearch()">
-      <button class="btn sm purple" onclick="doSearch()">Go</button>
+      <button class="icon-btn" onclick="go('${u ? '#/profile' : '#/auth'}')" aria-label="Akun">${u ? '👤' : '🔑'}</button>
     </div>`;
 }
 /* refresh header (mobile topbar / desktop header) */
@@ -37,6 +35,7 @@ function renderChrome() {
 }
 function toggleSearch() {
   const el = document.getElementById('tb-search');
+  if (!el) { const q = document.getElementById('tb-q'); if (q) q.focus(); return; }
   el.style.display = el.style.display === 'none' ? 'flex' : 'none';
   if (el.style.display !== 'none') document.getElementById('tb-q').focus();
 }
@@ -50,7 +49,6 @@ function renderNav(active) {
   if (!nav) return;
   const items = [
     ['home', '🏠', 'Home', '#/'],
-    ['games', '🎯', 'Games', '#/games'],
     ['cart', '🛒', 'Cart', '#/cart', store.cartCount()],
     ['profile', '👤', 'Akun', store.user ? '#/profile' : '#/auth'],
   ];
@@ -89,8 +87,8 @@ function renderSGrid() {
 
 const routes = [
   [/^#\/?$/, () => { renderNav('home'); vHome(); }],
-  [/^#\/games$/, () => { renderNav('games'); vGames(); }],
-  [/^#\/game\/([\w-]+)$/, (m) => { renderNav('games'); vGame(m[1]); }],
+  [/^#\/games$/, () => { renderNav('home'); vGames(); }],
+  [/^#\/game\/([\w-]+)$/, (m) => { renderNav('home'); vGame(m[1]); }],
   [/^#\/product\/(\d+)$/, (m) => { renderNav('home'); vProduct(m[1]); }],
   [/^#\/search\/(.+)$/, (m) => { renderNav('home'); vSearch(decodeURIComponent(m[1])); }],
   [/^#\/cart$/, () => { renderNav('cart'); vCart(); }],
