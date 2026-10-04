@@ -163,7 +163,7 @@ async function admVouchers() {
       ((d.vouchers || []).map((v) => `
       <div class="voucher-card"><div class="row"><div class="grow"><div class="vc">${esc(v.code)}</div>
       <div class="vd">${v.kind === 'percent' ? v.value + '% off' : rp(v.value) + ' off'} • used ${v.used_count}/${v.max_uses || '∞'} • ${v.active ? 'active' : 'off'}</div></div>
-      <button class="btn sm" style="background:#fff;color:var(--purple);box-shadow:none" onclick="admDelVoucher('${esc(v.code)}')">Delete</button></div></div>`).join('') || '<div class="empty">No vouchers.</div>');
+      <button class="btn sm" style="background:var(--card2);color:var(--ink);box-shadow:none" onclick="admDelVoucher('${esc(v.code)}')">Delete</button></div></div>`).join('') || '<div class="empty">No vouchers.</div>');
   } catch { el.innerHTML = `<div class="empty">Failed to load.</div>`; }
 }
 function admVoucherForm() {

@@ -96,7 +96,7 @@ async function dHome(el) {
       <div style="font-size:44px">🎟️</div>
       <div class="grow"><div style="font-weight:900;font-size:19px">Kode voucher: BONUS10</div>
       <div style="opacity:.9;font-size:14px">Diskon 10% untuk belanja minimal Rp50.000 — otomatis di checkout.</div></div>
-      <button class="btn" style="background:#fff;color:var(--purple)" onclick="go('#/games')">Belanja →</button>
+      <button class="btn" style="background:var(--card2);color:var(--ink)" onclick="go('#/games')">Belanja →</button>
     </div></div>`;
 
   // banners
@@ -121,7 +121,7 @@ async function dHome(el) {
       <div class="d-hero-fallback" style="margin-top:26px">
         <div><h1>Top Up Like<br>Never Before.</h1>
         <p>⚡ Instant delivery • 🛡️ 100% Safe • 🕐 24/7 Support</p>
-        <button class="btn" style="background:#fff;color:var(--purple);padding:14px 34px;font-size:16px" onclick="go('#/games')">Top Up Sekarang →</button></div>
+        <button class="btn" style="background:var(--card2);color:var(--ink);padding:14px 34px;font-size:16px" onclick="go('#/games')">Top Up Sekarang →</button></div>
         <img src="/img/hero.webp" alt="PlayTopUp mascots">
       </div>`;
     }
@@ -222,7 +222,7 @@ async function dProduct(el, id) {
     <div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <a href="#/games">Games</a> › <b>${esc(p.name)}</b></div>
     <div class="d-pd">
       <div class="d-pd-gallery">
-        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(mainImg)}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:#fff;border-radius:24px">🎮</div>`}</div>
+        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(mainImg)}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:var(--card-solid);border-radius:24px">🎮</div>`}</div>
       </div>
       <div class="d-pd-info">
         <div class="muted" style="font-weight:800;font-size:13.5px;letter-spacing:.4px;text-transform:uppercase">${esc(p.category || '')}</div>
@@ -242,7 +242,7 @@ async function dProduct(el, id) {
           <button class="btn" onclick="dBuyNow()">BELI SEKARANG</button>
         </div>
         <div class="card" style="margin-top:6px"><div style="font-weight:900;margin-bottom:8px">Deskripsi</div>
-          <div style="font-size:14.5px;line-height:1.7;color:#444">${esc(p.description || 'Top up instan. Aman & cepat, 24/7.')}</div></div>
+          <div style="font-size:14.5px;line-height:1.7;color:var(--ink)">${esc(p.description || 'Top up instan. Aman & cepat, 24/7.')}</div></div>
       </div>
     </div>
     <div class="d-sec"><div class="card"><div class="d-sec-head" style="margin:0 0 10px"><h2 style="font-size:18px">Ulasan</h2></div>

@@ -107,7 +107,7 @@ async function vWallet() {
     ${banners.filter((b) => b.active).map((b) => `<div class="banner-card" ${b.link_url ? `onclick="go('${esc(b.link_url)}')" style="cursor:pointer"` : ''}>${b.image_url ? `<img src="${esc(b.image_url)}" alt="">` : ''}</div>`).join('')}
     ${promos.length ? `<div class="sec-head"><h2 style="font-size:17px">Available vouchers</h2></div>` + promos.map((p) => `
       <div class="voucher-card"><div class="vc">${esc(p.code)}</div><div class="vd">${esc(p.description || '')}</div>
-      <button class="btn sm" style="margin-top:8px;background:#fff;color:var(--purple);box-shadow:none" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(p.code)}');toast('Code copied: ${esc(p.code)}',true)">Copy Code</button></div>`).join('')
+      <button class="btn sm" style="margin-top:8px;background:var(--card2);color:var(--ink);box-shadow:none" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(p.code)}');toast('Code copied: ${esc(p.code)}',true)">Copy Code</button></div>`).join('')
     : `<div class="empty"><div class="big">🎟️</div><p class="muted">No active promos right now.<br>Check back soon!</p></div>`}`;
 }
 
