@@ -208,7 +208,6 @@ body.is-desktop #bg-decor { opacity: .5; }
 }
 
 /* ---------- performance ---------- */
-.d-cat { content-visibility: auto; contain-intrinsic-size: auto 170px; }
 
 /* ================= LIGHT MODE (desktop) ================= */
 [data-theme="light"] .d-header { background: rgba(255,255,255,.85); }
