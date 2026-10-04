@@ -527,3 +527,17 @@ a { color: var(--neon); }
 .imgph img { opacity: 0; transition: opacity .45s ease; }
 .imgph.done { background: none; animation: none; }
 .imgph.done img { opacity: 1; }
+
+/* ---------- performance: render hemat ---------- */
+/* Lewati render kartu di luar viewport — hemat CPU/GPU saat scroll daftar panjang */
+.pcard { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+.cart-item { content-visibility: auto; contain-intrinsic-size: auto 110px; }
+.ticket-msg { content-visibility: auto; contain-intrinsic-size: auto 90px; }
+.voucher-card { content-visibility: auto; contain-intrinsic-size: auto 130px; }
+.banner-card { content-visibility: auto; contain-intrinsic-size: auto 220px; }
+/* Kurangi efek blur berat di layar kecil agar scroll tidak lag */
+@media (max-width: 1023px) {
+  .pcard { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  #topbar { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .sticky-buy { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+}

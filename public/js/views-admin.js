@@ -35,6 +35,7 @@ async function admDash() {
 
 async function admOrders() {
   const el = document.getElementById('adm-body');
+  el.innerHTML = `<div class="skel" style="height:64px"></div><div class="skel" style="height:64px;margin-top:10px"></div><div class="skel" style="height:64px;margin-top:10px"></div>`;
   try {
     const d = await api.get('/api/orders/all?limit=50');
     const list = d.orders || [];
@@ -55,7 +56,7 @@ async function admOrderDetail(id) {
       <div style="font-size:14px;margin-bottom:8px">${esc((o.items || []).map((i) => `${i.name} × ${i.qty}`).join('<br>'))}</div>
       <div class="row" style="margin-bottom:8px"><span class="muted grow">Total</span><b class="price">${rp(o.total)}</b></div>
       <div class="muted" style="font-size:13px">Pay via: ${esc(o.payment_method)}${o.voucher_code ? ` • Voucher: ${esc(o.voucher_code)}` : ''}</div>
-      ${o.proof_path ? `<div style="margin:10px 0"><b>Payment proof:</b><br><img src="${esc(o.proof_path)}" style="max-width:100%;border-radius:12px;margin-top:6px"></div>` : ''}
+      ${o.proof_path ? `<div style="margin:10px 0"><b>Payment proof:</b><br><img src="${esc(o.proof_path)}" loading="lazy" decoding="async" style="max-width:100%;border-radius:12px;margin-top:6px"></div>` : ''}
       ${o.delivery_data ? `<div class="announce">🎁 ${esc(typeof o.delivery_data === 'string' ? o.delivery_data : JSON.stringify(o.delivery_data))}</div>` : ''}
       <div class="divider"></div>
       <div class="row" style="flex-wrap:wrap;gap:8px">${next.map((s) => `<button class="btn sm ${s === 'dibatalkan' ? 'line' : 'purple'}" onclick="admSetStatus(${o.id},'${s}')">${s === 'dibatalkan' ? 'Cancel order' : '→ ' + s}</button>`).join('') || '<span class="muted">No actions available.</span>'}</div>`);
@@ -76,7 +77,7 @@ async function admProducts() {
     const list = d.products || [];
     el.innerHTML = `<button class="btn purple block" style="margin-bottom:12px" onclick="admProductForm()">+ Add Product</button>` +
       `<div class="card" style="overflow-x:auto"><table class="tbl"><tr><th></th><th>Product</th><th>Price</th><th>Stock</th><th></th></tr>` +
-      list.map((p) => `<tr><td>${p.image_url ? `<img class="thumb" src="${esc(p.image_url)}">` : '🎮'}</td>
+      list.map((p) => `<tr><td>${p.image_url ? `<img class="thumb" src="${esc(imgUrl(p.image_url))}" loading="lazy" decoding="async">` : '🎮'}</td>
       <td><b>${esc(p.name)}</b><br><span class="muted" style="font-size:11px">${esc(p.category || '')}</span></td>
       <td><b>${rp(p.price)}</b></td><td>${p.stock}</td>
       <td><button class="btn sm ghost" onclick="admProductForm(${p.id})">Edit</button></td></tr>`).join('') + `</table></div>`;
@@ -204,7 +205,7 @@ async function admBanners() {
       <div class="banner-card"><div class="row" style="padding:10px"><div class="grow"><b>Banner #${b.id}</b><br><span class="muted" style="font-size:12px">${b.active ? '✅ active' : '⏸ off'} ${b.link_url ? `• → ${esc(b.link_url)}` : ''}</span></div>
       <button class="btn sm ghost" onclick="admToggleBanner(${b.id},${b.active ? 0 : 1})">${b.active ? 'Disable' : 'Enable'}</button>
       <button class="btn sm line" style="color:#b91c1c" onclick="admDelBanner(${b.id})">✕</button></div>
-      ${b.image_url ? `<img src="${esc(b.image_url)}">` : ''}</div>`).join('') || '<div class="empty">No banners.</div>');
+      ${b.image_url ? `<div class="imgph"><img src="${esc(imgUrl(b.image_url))}" loading="lazy" decoding="async" onload="imgLd(this)" style="width:100%;display:block"></div>` : ''}</div>`).join('') || '<div class="empty">No banners.</div>');
   } catch { el.innerHTML = `<div class="empty">Failed to load.</div>`; }
 }
 function admBannerForm() {
@@ -237,6 +238,7 @@ async function admDelBanner(id) {
 
 async function admTickets() {
   const el = document.getElementById('adm-body');
+  el.innerHTML = `<div class="skel" style="height:70px"></div><div class="skel" style="height:70px;margin-top:10px"></div>`;
   try {
     const d = await api.get('/api/admin/tickets');
     const list = d.tickets || [];
@@ -266,6 +268,7 @@ async function admReplyTicket(id) {
 
 async function admUsers() {
   const el = document.getElementById('adm-body');
+  el.innerHTML = `<div class="skel" style="height:120px"></div>`;
   try {
     const d = await api.get('/api/users');
     const list = d.users || [];

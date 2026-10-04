@@ -99,55 +99,65 @@ async function dHome(el) {
       <button class="btn" style="background:var(--card2);color:var(--ink)" onclick="go('#/games')">Belanja →</button>
     </div></div>`;
 
+  /* Ketiga API dipanggil paralel agar halaman desktop lebih cepat tampil */
+  const [bRes, sRes, pRes] = await Promise.allSettled([
+    api.get('/api/banners'),
+    api.get('/api/settings/public'),
+    api.get('/api/products?limit=60'),
+  ]);
+
   // banners
-  try {
-    const b = await api.get('/api/banners');
-    const banners = (b.banners || []).filter((x) => x.image_url);
-    const hero = el.querySelector('.d-hero');
-    if (banners.length && hero) {
+  const hero = el.querySelector('.d-hero');
+  if (bRes.status === 'fulfilled' && hero) {
+    const banners = (bRes.value.banners || []).filter((x) => x.image_url);
+    if (banners.length) {
       if (dBannerTimer) clearInterval(dBannerTimer);
       dBannerIdx = 0;
       hero.innerHTML = `
         <div class="d-hero-track" id="d-hero-track">${banners.map((x) => `
-          <div class="d-hero-slide"><img src="${esc(imgUrl(x.image_url))}" alt="Promo" loading="lazy"></div>`).join('')}</div>
+          <div class="d-hero-slide"><img src="${esc(imgUrl(x.image_url))}" alt="Promo" loading="lazy" decoding="async"></div>`).join('')}</div>
         ${banners.length > 1 ? `
         <button class="d-hero-arrow prev" onclick="dBannerMove(-1)">‹</button>
         <button class="d-hero-arrow next" onclick="dBannerMove(1)">›</button>
         <div class="d-hero-dots" id="d-hero-dots">${banners.map((_, i) => `<button class="${i === 0 ? 'on' : ''}" onclick="dBannerGo(${i})"></button>`).join('')}</div>` : ''}`;
       window._dBanners = banners;
       if (banners.length > 1) dBannerTimer = setInterval(() => dBannerMove(1), 5000);
-    } else if (hero) {
+    } else {
       hero.outerHTML = `
       <div class="d-hero-fallback" style="margin-top:26px">
         <div><h1>Top Up Like<br>Never Before.</h1>
         <p>⚡ Instant delivery • 🛡️ 100% Safe • 🕐 24/7 Support</p>
         <button class="btn" style="background:var(--card2);color:var(--ink);padding:14px 34px;font-size:16px" onclick="go('#/games')">Top Up Sekarang →</button></div>
-        <img src="/img/hero.webp?v=2" alt="PlayTopUp mascots">
+        <img src="/img/hero.webp?v=2" alt="PlayTopUp mascots" fetchpriority="high" decoding="async">
       </div>`;
     }
-  } catch { /* keep skeleton/fallback */ }
+  }
 
   // categories
-  try {
-    const s = await api.get('/api/settings/public');
-    const cats = s.categories || [];
-    const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
-    const box = document.getElementById('d-cats');
-    if (box) box.innerHTML = cats.map((c) => `
+  const catBox = document.getElementById('d-cats');
+  if (catBox) {
+    if (sRes.status === 'fulfilled') {
+      const cats = sRes.value.categories || [];
+      const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
+      catBox.innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" decoding="async" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b>${esc(c.icon || '')} ${esc(c.label)}</b>
       </div>`).join('') || `<div class="d-empty">Belum ada kategori.</div>`;
-  } catch { const box = document.getElementById('d-cats'); if (box) box.innerHTML = ''; }
+    } else catBox.innerHTML = '';
+  }
 
   // popular products
-  try {
-    const d = await api.get('/api/products?limit=60');
-    const items = (d.products || []).sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 10);
-    const box = document.getElementById('d-pop');
-    if (box) box.innerHTML = items.length ? items.map(productCard).join('')
-      : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🎮</div>Belum ada produk.</div>`;
-  } catch { const box = document.getElementById('d-pop'); if (box) box.innerHTML = `<div class="d-empty" style="grid-column:1/-1">Gagal memuat produk.</div>`; }
+  const popBox = document.getElementById('d-pop');
+  if (popBox) {
+    if (pRes.status === 'fulfilled') {
+      const items = (pRes.value.products || []).sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 10);
+      popBox.innerHTML = items.length ? items.map(productCard).join('')
+        : `<div class="d-empty" style="grid-column:1/-1"><div class="big">🎮</div>Belum ada produk.</div>`;
+    } else {
+      popBox.innerHTML = `<div class="d-empty" style="grid-column:1/-1">Gagal memuat produk.</div>`;
+    }
+  }
 }
 function dBannerMove(dir) {
   const n = (window._dBanners || []).length;
@@ -173,7 +183,7 @@ async function dGames(el) {
     const cats = s.categories || [];
     document.getElementById('d-games').innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(D_CAT_IMGS[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(D_CAT_IMGS[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" decoding="async" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b style="font-size:15px">${esc(c.icon || '')} ${esc(c.label)}</b>
         <div class="muted" style="font-size:12.5px;font-weight:700;margin-top:4px">Top up instan</div>
       </div>`).join('') || `<div class="d-empty">Belum ada game.</div>`;
@@ -222,7 +232,7 @@ async function dProduct(el, id) {
     <div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <a href="#/games">Games</a> › <b>${esc(p.name)}</b></div>
     <div class="d-pd">
       <div class="d-pd-gallery">
-        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(imgUrl(mainImg))}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:var(--card-solid);border-radius:24px">🎮</div>`}</div>
+        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(imgUrl(mainImg))}" alt="${esc(p.name)}" decoding="async" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:var(--card-solid);border-radius:24px">🎮</div>`}</div>
       </div>
       <div class="d-pd-info">
         <div class="muted" style="font-weight:800;font-size:13.5px;letter-spacing:.4px;text-transform:uppercase">${esc(p.category || '')}</div>
@@ -323,7 +333,7 @@ function dCart(el) {
         </div>
         ${cart.map((it, i) => `
         <div class="d-cart-item" style="padding:14px 0;border-top:1px solid var(--line)">
-          ${it.image_url ? `<div class="imgph" style="border-radius:16px"><img src="${esc(imgUrl(it.image_url))}" alt="" loading="lazy" onload="imgLd(this)" style="width:96px;height:96px;border-radius:16px;object-fit:cover"></div>`
+          ${it.image_url ? `<div class="imgph" style="border-radius:16px"><img src="${esc(imgUrl(it.image_url))}" alt="" loading="lazy" decoding="async" onload="imgLd(this)" style="width:96px;height:96px;border-radius:16px;object-fit:cover"></div>`
             : `<div style="width:96px;height:96px;border-radius:16px;background:var(--purple-soft);display:flex;align-items:center;justify-content:center;font-size:38px;flex:none">🎮</div>`}
           <div class="grow"><div style="font-weight:900;font-size:15.5px">${esc(it.name)}</div>
             ${it.variant_label ? `<div class="muted" style="font-size:13px;font-weight:700">${esc(it.variant_label)}</div>` : ''}

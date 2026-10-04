@@ -24,7 +24,7 @@ async function vHome() {
         <div class="ticks"><b>✔</b> Instant • Safe • 24/7 &nbsp; 🛡️ Support</div>
         <button class="btn" onclick="go('#/games')">Explore Deals →</button>
       </div>
-      <img class="mascots" src="/img/hero.webp?v=2" alt="PlayTopUp mascots">
+      <img class="mascots" src="/img/hero.webp?v=2" alt="PlayTopUp mascots" fetchpriority="high" decoding="async">
     </div>
     <div class="sec-head"><h2>Categories</h2></div>
     <div class="hscroll" id="cat-row"><div class="skel" style="width:120px;height:52px"></div><div class="skel" style="width:140px;height:52px"></div><div class="skel" style="width:130px;height:52px"></div></div>
@@ -35,21 +35,31 @@ async function vHome() {
     <div class="trust">✨⚡ Instant delivery • 100% Safe Payment • Official Partner</div>
     <div style="height:8px"></div>`;
 
-  try {
-    const s = await api.get('/api/settings/public');
-    if (s.announcement) document.getElementById('announce-slot').innerHTML = `<div class="announce">📢 ${esc(s.announcement)}</div>`;
-    const cats = [{ id: 'popular', label: 'Popular', icon: '⭐' }, ...(s.categories || [])];
-    document.getElementById('cat-row').innerHTML = cats.map((c) => catChip(c)).join('');
-  } catch { document.getElementById('cat-row').innerHTML = ''; }
+  /* API dipanggil paralel agar halaman lebih cepat tampil */
+  const [sRes, pRes] = await Promise.allSettled([
+    api.get('/api/settings/public'),
+    api.get('/api/products?limit=60'),
+  ]);
 
-  try {
-    const d = await api.get('/api/products?limit=60');
-    const items = (d.products || []).sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 6);
-    document.getElementById('pop-grid').innerHTML = items.length
-      ? items.map(productCard).join('')
-      : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products yet.</div>`;
-  } catch (e) {
-    document.getElementById('pop-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load products.</div>`;
+  const catRow = document.getElementById('cat-row');
+  if (sRes.status === 'fulfilled') {
+    const s = sRes.value;
+    const slot = document.getElementById('announce-slot');
+    if (s.announcement && slot) slot.innerHTML = `<div class="announce">📢 ${esc(s.announcement)}</div>`;
+    const cats = [{ id: 'popular', label: 'Popular', icon: '⭐' }, ...(s.categories || [])];
+    if (catRow) catRow.innerHTML = cats.map((c) => catChip(c)).join('');
+  } else if (catRow) catRow.innerHTML = '';
+
+  const grid = document.getElementById('pop-grid');
+  if (grid) {
+    if (pRes.status === 'fulfilled') {
+      const items = (pRes.value.products || []).sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 6);
+      grid.innerHTML = items.length
+        ? items.map(productCard).join('')
+        : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products yet.</div>`;
+    } else {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load products.</div>`;
+    }
   }
 }
 
@@ -62,7 +72,7 @@ async function vGames() {
     const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
     document.getElementById('games-grid').innerHTML = cats.map((c) => `
       <div class="pcard" onclick="go('#/game/${esc(c.id)}')">
-        <div class="pimg imgph"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)"></div>
+        <div class="pimg imgph"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" decoding="async" onload="imgLd(this)"></div>
         <div class="pbody"><div class="pname">${esc(c.icon || '')} ${esc(c.label)}</div>
         <div class="pvar">Top up instantly</div></div>
       </div>`).join('') || `<div class="empty" style="grid-column:1/-1">No games yet.</div>`;
@@ -72,15 +82,24 @@ async function vGames() {
 async function vGame(id) {
   const view = document.getElementById('view');
   view.innerHTML = `<div class="sec-head"><h2 id="g-title">…</h2></div><div class="pgrid" id="g-grid">${'<div class="skel" style="height:270px"></div>'.repeat(4)}</div>`;
-  try {
-    const s = await api.get('/api/settings/public');
-    const cat = (s.categories || []).find((c) => c.id === id);
-    document.getElementById('g-title').textContent = cat ? `${cat.icon || ''} ${cat.label}` : 'Products';
-    const d = await api.get('/api/products?category=' + encodeURIComponent(id) + '&limit=60');
-    const items = d.products || [];
-    document.getElementById('g-grid').innerHTML = items.length ? items.map(productCard).join('')
+  const [sRes, pRes] = await Promise.allSettled([
+    api.get('/api/settings/public'),
+    api.get('/api/products?category=' + encodeURIComponent(id) + '&limit=60'),
+  ]);
+  const grid = document.getElementById('g-grid');
+  if (!grid) return;
+  if (sRes.status === 'fulfilled') {
+    const cat = ((sRes.value.categories || [])).find((c) => c.id === id);
+    const t = document.getElementById('g-title');
+    if (t) t.textContent = cat ? `${cat.icon || ''} ${cat.label}` : 'Products';
+  }
+  if (pRes.status === 'fulfilled') {
+    const items = pRes.value.products || [];
+    grid.innerHTML = items.length ? items.map(productCard).join('')
       : `<div class="empty" style="grid-column:1/-1"><div class="big">🎮</div>No products in this category yet.</div>`;
-  } catch { document.getElementById('g-grid').innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load.</div>`; }
+  } else {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Failed to load.</div>`;
+  }
 }
 
 async function vProduct(id) {
@@ -94,7 +113,7 @@ async function vProduct(id) {
   const disc = Number(p.discount) || 0;
 
   view.innerHTML = `
-    <div class="detail-img imgph">${mainImg ? `<img src="${esc(mainImg)}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:64px">🎮</div>`}</div>
+    <div class="detail-img imgph">${mainImg ? `<img src="${esc(imgUrl(mainImg))}" alt="${esc(p.name)}" decoding="async" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:64px">🎮</div>`}</div>
     <div class="card" style="margin-top:12px">
       <div class="row"><h2 style="margin:0" class="grow">${esc(p.name)}</h2>
         ${store.user ? `<button class="icon-btn ghost" onclick="toggleWish(${p.id},this)">${window._wishlist && window._wishlist.has(p.id) ? '❤️' : '🤍'}</button>` : ''}</div>

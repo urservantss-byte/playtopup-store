@@ -68,7 +68,7 @@ function imgLd(el) {
   if (w) w.classList.add('done');
 }
 function productCard(p) {
-  const img = p.image_url ? `<img src="${esc(imgUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy" onload="imgLd(this)">`
+  const img = p.image_url ? `<img src="${esc(imgUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy" decoding="async" onload="imgLd(this)">`
     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:44px;background:var(--purple-soft)">🎮</div>`;
   const wished = store.user && window._wishlist && window._wishlist.has(p.id);
   return `
@@ -113,6 +113,11 @@ async function quickBuy(pid) {
 function effPrice(p) {
   const d = Number(p.discount) || 0;
   return d > 0 ? Math.round(p.price * (1 - d / 100)) : p.price;
+}
+/* Debounce: tunda eksekusi sampai jeda input selesai (hindari spam API/render). */
+function debounce(fn, ms) {
+  let t = null;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms || 300); };
 }
 function go(hash) { location.hash = hash; }
 

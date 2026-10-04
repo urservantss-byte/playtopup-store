@@ -49,7 +49,7 @@ function vProfile() {
   view.innerHTML = `
     <div class="card">
       <div class="profile-head">
-        <img class="avatar" src="${esc(u.avatar || '')}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧑</text></svg>'" alt="">
+        <img class="avatar" src="${esc(u.avatar || '')}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧑</text></svg>'" alt="">
         <div class="grow"><h2 style="margin:0">${esc(u.name)}</h2><div class="muted" style="font-weight:600;font-size:13px">${esc(u.email)}</div>
         ${u.role === 'admin' ? `<span class="chip" style="margin-top:4px">👑 Admin</span>` : ''}</div>
       </div>
@@ -98,13 +98,12 @@ async function vWishlist() {
 async function vWallet() {
   const view = document.getElementById('view');
   view.innerHTML = `<div class="sec-head"><h2>🎟️ Wallet & Promos</h2></div><div class="skel" style="height:110px"></div>`;
-  let promos = [];
-  try { const d = await api.get('/api/promos'); promos = d.promos || []; } catch {}
-  let banners = [];
-  try { const b = await api.get('/api/banners'); banners = b.banners || []; } catch {}
+  const [pRes, bRes] = await Promise.allSettled([api.get('/api/promos'), api.get('/api/banners')]);
+  const promos = pRes.status === 'fulfilled' ? (pRes.value.promos || []) : [];
+  const banners = bRes.status === 'fulfilled' ? (bRes.value.banners || []) : [];
   view.innerHTML = `
     <div class="sec-head"><h2>🎟️ Wallet & Promos</h2></div>
-    ${banners.filter((b) => b.active).map((b) => `<div class="banner-card" ${b.link_url ? `onclick="go('${esc(b.link_url)}')" style="cursor:pointer"` : ''}>${b.image_url ? `<img src="${esc(b.image_url)}" alt="">` : ''}</div>`).join('')}
+    ${banners.filter((b) => b.active).map((b) => `<div class="banner-card" ${b.link_url ? `onclick="go('${esc(b.link_url)}')" style="cursor:pointer"` : ''}>${b.image_url ? `<div class="imgph" style="border-radius:18px"><img src="${esc(imgUrl(b.image_url))}" alt="" loading="lazy" decoding="async" onload="imgLd(this)" style="width:100%;border-radius:18px;display:block"></div>` : ''}</div>`).join('')}
     ${promos.length ? `<div class="sec-head"><h2 style="font-size:17px">Available vouchers</h2></div>` + promos.map((p) => `
       <div class="voucher-card"><div class="vc">${esc(p.code)}</div><div class="vd">${esc(p.description || '')}</div>
       <button class="btn sm" style="margin-top:8px;background:var(--card2);color:var(--ink);box-shadow:none" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(p.code)}');toast('Code copied: ${esc(p.code)}',true)">Copy Code</button></div>`).join('')

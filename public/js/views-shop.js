@@ -10,7 +10,7 @@ function vCart() {
     <div class="sec-head"><h2>Cart (${store.cartCount()})</h2><button class="chip" onclick="store.clearCart();vCart()">Clear</button></div>
     <div id="cart-items">${cart.map((it, i) => `
       <div class="cart-item">
-        ${it.image_url ? `<img src="${esc(it.image_url)}" alt="">` : `<div style="width:64px;height:64px;border-radius:14px;background:var(--purple-soft);display:flex;align-items:center;justify-content:center;font-size:28px">🎮</div>`}
+        ${it.image_url ? `<div class="imgph" style="width:64px;height:64px;border-radius:14px;flex:none"><img src="${esc(imgUrl(it.image_url))}" alt="" loading="lazy" decoding="async" onload="imgLd(this)" style="width:64px;height:64px;border-radius:14px;object-fit:cover"></div>` : `<div style="width:64px;height:64px;border-radius:14px;background:var(--purple-soft);display:flex;align-items:center;justify-content:center;font-size:28px">🎮</div>`}
         <div class="grow"><div style="font-weight:900;font-size:14px">${esc(it.name)}</div>
           ${it.variant_label ? `<div class="muted" style="font-size:12px;font-weight:700">${esc(it.variant_label)}</div>` : ''}
           <div class="price" style="font-size:14px">${rp(it.price)}</div></div>
@@ -116,7 +116,7 @@ async function vPay(id) {
       <div class="qr-box">
         <div style="font-weight:900;font-size:17px;margin-bottom:4px">⚡ Scan to Pay</div>
         <div class="muted" style="font-size:13px;font-weight:700;margin-bottom:12px">Order #${o.id} • PlayTopUp Store</div>
-        ${qr && qr.qr ? `<img src="${qr.qr}" alt="QRIS code">` : `<div class="muted">QR code unavailable — contact support.</div>`}
+        ${qr && qr.qr ? `<div class="imgph" style="border-radius:16px;max-width:280px;margin:0 auto"><img src="${qr.qr}" alt="QRIS code" loading="lazy" decoding="async" onload="imgLd(this)" style="width:100%;border-radius:16px"></div>` : `<div class="muted">QR code unavailable — contact support.</div>`}
         <div class="price" style="font-size:26px;margin:12px 0">${rp(o.total)}</div>
         <div class="muted" style="font-size:13px;font-weight:600">Open any e-wallet / m-banking app and scan.<br>Amount is set automatically.</div>
       </div>
@@ -146,7 +146,7 @@ async function vPay(id) {
     const fi = document.getElementById('proof-file');
     fi.addEventListener('change', () => {
       const f = fi.files[0];
-      if (f) document.getElementById('proof-prev').innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:100%;border-radius:14px">`;
+      if (f) document.getElementById('proof-prev').innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:100%;border-radius:14px" decoding="async">`;
     });
   }
 }

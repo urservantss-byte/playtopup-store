@@ -206,3 +206,6 @@ body.is-desktop #bg-decor { opacity: .5; }
   .d-catrow { grid-template-columns: repeat(3, 1fr); }
   .d-pd { grid-template-columns: 400px 1fr; gap: 28px; }
 }
+
+/* ---------- performance ---------- */
+.d-cat { content-visibility: auto; contain-intrinsic-size: auto 170px; }
