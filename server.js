@@ -336,6 +336,14 @@ function seed() {
 }
 seed();
 
+// Seed katalog PlayTopUp (kategori game, produk+varian, banner, voucher, settings)
+// saat database masih fresh — mis. deploy pertama di Railway.
+// Penanda: voucher BONUS10 belum ada.
+try {
+  const hasCatalog = db.prepare("SELECT COUNT(*) c FROM vouchers WHERE code='BONUS10'").get().c > 0;
+  if (!hasCatalog) require('./seed').runSeed(db);
+} catch (e) { console.log('[seed] katalog skip:', e.message); }
+
 // ---- Migrasi: backfill product_images dari image_url lama ----
 (function migrateImages() {
   const rows = db.prepare(`SELECT p.id, p.image_url FROM products p
