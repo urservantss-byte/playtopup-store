@@ -528,6 +528,8 @@ async function renderDesktop() {
   if (h === '#/cart') return dCart(el);
   if (h === '#/checkout') return dCheckout(el);
   // halaman lain: pakai view yang sama, dibungkus layout desktop
-  el.innerHTML = `<div class="d-secondary"><div id="view"></div></div>`;
+  // admin: lebar penuh (bukan kolom sempit) supaya jadi desain desktop beneran
+  if (/^#\/admin/.test(h)) el.innerHTML = `<div id="view"></div>`;
+  else el.innerHTML = `<div class="d-secondary"><div id="view"></div></div>`;
   routeMobile(h);
 }

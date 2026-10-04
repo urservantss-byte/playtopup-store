@@ -231,3 +231,10 @@ body.is-desktop #bg-decor { opacity: .5; }
 .d-pgrid .pcard .buy { font-size: 15px; padding: 12px; margin-top: 10px; }
 /* section header desktop: lebih tegas */
 .d-sec-head { margin-bottom: 20px; }
+
+/* ---------- admin panel di desktop: layout lebar penuh ---------- */
+body.is-desktop .adm-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+body.is-desktop .adm-tabs { flex-wrap: wrap; overflow-x: visible; -webkit-mask-image: none; mask-image: none; }
+body.is-desktop #adm-body .card { padding: 20px 22px; }
+body.is-desktop #adm-body .tbl th, body.is-desktop #adm-body .tbl td { padding: 12px 14px; }
+body.is-desktop .sec-head h2 { font-size: 26px; }
