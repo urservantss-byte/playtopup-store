@@ -276,9 +276,10 @@ function renderAdmProdList() {
       <td><b>${rp(p.price)}</b>${p.discount ? `<br><span class="chip" style="background:#fef3c7;color:#b45309">-${p.discount}%</span>` : ''}</td>
       <td><b>${p.stock}</b> <button class="btn sm ghost" title="Tambah 10 stok" onclick="admQuickStock(${p.id},10)">+10</button></td>
       <td style="white-space:nowrap">
-        <button class="btn sm ghost" title="Stok kode voucher" onclick="admProductCodes(${p.id})">🎫</button>
-        <button class="btn sm ghost" title="Stok akun" onclick="admProductAccounts(${p.id})">👤</button>
-        <button class="btn sm ghost" onclick="admProductForm(${p.id})">✏️</button>
+        ${p.category === 'akun'
+          ? `<button class="btn sm ghost" title="Kelola stok akun" onclick="admProductAccounts(${p.id})">👤 Stok</button>`
+          : `<button class="btn sm ghost" title="Kelola stok kode" onclick="admProductCodes(${p.id})">🎫 Stok</button>`}
+        <button class="btn sm ghost" title="Edit" onclick="admProductForm(${p.id})">✏️</button>
         <button class="btn sm line" style="color:#b91c1c" title="Hapus" onclick="admDelProduct(${p.id})">🗑️</button>
       </td></tr>`;
     }).join('') + `</table></div>`
@@ -365,7 +366,9 @@ async function admProductForm(id) {  let p = { name: '', price: 0, stock: 10, ca
     <div class="field"><label>Image URL</label><input id="ap-img" value="${esc(p.image_url || '')}" placeholder="/img/ml.webp"></div>
     <button class="btn block purple" onclick="admSaveProduct(${id || 0})">Save</button>
     ${id ? `<div style="height:8px"></div><button class="btn block line" onclick="admProductVariants(${id})">Manage Variants (denominations)</button>
-    <div style="height:8px"></div><button class="btn block line" onclick="admProductAccounts(${id})">👤 Kelola Stok Akun</button>
+    <div style="height:8px"></div>${p.category === 'akun'
+      ? `<button class="btn block line" onclick="admProductAccounts(${id})">👤 Kelola Stok Akun</button>`
+      : `<button class="btn block line" onclick="admProductCodes(${id})">🎫 Kelola Stok Kode</button>`}
     <div style="height:8px"></div><button class="btn block line" style="color:#b91c1c" onclick="admDelProduct(${id})">Delete Product</button>` : ''}`);
 }
 async function admSaveProduct(id) {
