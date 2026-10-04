@@ -1026,6 +1026,14 @@ app.post('/api/admin/vouchers', auth, requireAdmin, (req, res) => {
     res.status(201).json({ ok: true });
   } catch { res.status(400).json({ error: 'Kode sudah dipakai' }); }
 });
+app.patch('/api/admin/vouchers/:code', auth, requireAdmin, (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const v = db.prepare('SELECT * FROM vouchers WHERE code = ?').get(code);
+  if (!v) return res.status(404).json({ error: 'Voucher tidak ditemukan' });
+  const { active } = req.body || {};
+  db.prepare('UPDATE vouchers SET active = ? WHERE code = ?').run(active ? 1 : 0, code);
+  res.json({ ok: true });
+});
 app.delete('/api/admin/vouchers/:code', auth, requireAdmin, (req, res) => {
   db.prepare('DELETE FROM vouchers WHERE code = ?').run(req.params.code.toUpperCase());
   res.json({ ok: true });
@@ -1491,6 +1499,9 @@ app.get('/api/admin/store-settings', auth, requireAdmin, (req, res) => {
   });
 });
 // ---- CRUD metode pembayaran (admin) ----
+app.get('/api/admin/pay-methods', auth, requireAdmin, (req, res) => {
+  res.json({ methods: allPayMethods() });
+});
 app.post('/api/admin/pay-methods', auth, requireAdmin, (req, res) => {
   const { id, label, details = '', kind = 'transfer' } = req.body || {};
   const rawId = id || label || '';

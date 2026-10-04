@@ -57,6 +57,7 @@ function vProfile() {
       <div class="menu-list">
         ${u.role === 'admin' ? `<a class="menu-item" href="#/admin"><span class="mi">⚙️</span>Admin Panel<span class="arr">›</span></a>` : ''}
         <a class="menu-item" href="#/orders"><span class="mi">📦</span>My Orders<span class="arr">›</span></a>
+        <a class="menu-item" href="#/wallet"><span class="mi">👛</span>Wallet & Promos<span class="arr">›</span></a>
         <a class="menu-item" href="#/wishlist"><span class="mi">❤️</span>Wishlist<span class="arr">›</span></a>
         <a class="menu-item" href="#/tickets"><span class="mi">💬</span>Support Tickets<span class="arr">›</span></a>
         <a class="menu-item" href="#/faq"><span class="mi">❓</span>FAQ<span class="arr">›</span></a>

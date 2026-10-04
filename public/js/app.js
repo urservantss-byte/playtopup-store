@@ -24,7 +24,6 @@ function renderTopbar() {
       <button class="icon-btn" onclick="toggleTheme()" aria-label="Theme">${themeIcon()}</button>
       <button class="icon-btn" onclick="toggleSearch()" aria-label="Search">🔍</button>
       <button class="icon-btn" onclick="go('#/notif')" aria-label="Notifications">🔔${window._unread ? `<span class="badge">${window._unread > 9 ? '9+' : window._unread}</span>` : (u ? '<span class="dot"></span>' : '')}</button>
-      <button class="icon-btn" onclick="go('#/cart')" aria-label="Cart">🛒${store.cartCount() ? `<span class="badge">${store.cartCount()}</span>` : ''}</button>
     </div>
     <div class="tb-search" id="tb-search" style="display:none">
       <input id="tb-q" placeholder="Search games, diamonds, vouchers…" onkeydown="if(event.key==='Enter')doSearch()">
@@ -52,12 +51,11 @@ function renderNav(active) {
   const items = [
     ['home', '🏠', 'Home', '#/'],
     ['games', '🎯', 'Games', '#/games'],
-    ['orders', '📦', 'Orders', '#/orders'],
-    ['wallet', '👛', 'Wallet', '#/wallet'],
-    ['profile', '👤', 'Profile', store.user ? '#/profile' : '#/auth'],
+    ['cart', '🛒', 'Cart', '#/cart', store.cartCount()],
+    ['profile', '👤', 'Akun', store.user ? '#/profile' : '#/auth'],
   ];
-  nav.innerHTML = items.map(([k, ic, lb, h]) =>
-    `<button class="bn-item ${k === active ? 'active' : ''}" onclick="go('${h}')"><span class="ic">${ic}</span>${lb}</button>`).join('');
+  nav.innerHTML = items.map(([k, ic, lb, h, badge]) =>
+    `<button class="bn-item ${k === active ? 'active' : ''}" onclick="go('${h}')"><span class="ic">${ic}</span>${lb}${badge ? `<span class="badge">${badge > 9 ? '9+' : badge}</span>` : ''}</button>`).join('');
 }
 
 async function vSearch(q) {
@@ -95,16 +93,16 @@ const routes = [
   [/^#\/game\/([\w-]+)$/, (m) => { renderNav('games'); vGame(m[1]); }],
   [/^#\/product\/(\d+)$/, (m) => { renderNav('home'); vProduct(m[1]); }],
   [/^#\/search\/(.+)$/, (m) => { renderNav('home'); vSearch(decodeURIComponent(m[1])); }],
-  [/^#\/cart$/, () => { renderNav('home'); vCart(); }],
-  [/^#\/checkout$/, () => { renderNav('home'); vCheckout(); }],
-  [/^#\/pay\/(\d+)$/, (m) => { renderNav('orders'); vPay(m[1]); }],
-  [/^#\/orders$/, () => { renderNav('orders'); vOrders(); }],
-  [/^#\/order\/(\d+)$/, (m) => { renderNav('orders'); vOrder(m[1]); }],
-  [/^#\/track$/, () => { renderNav('orders'); vTrackForm(); }],
-  [/^#\/track\/(\d+)$/, (m) => { renderNav('orders'); vTrackForm(); }],
+  [/^#\/cart$/, () => { renderNav('cart'); vCart(); }],
+  [/^#\/checkout$/, () => { renderNav('cart'); vCheckout(); }],
+  [/^#\/pay\/(\d+)$/, (m) => { renderNav('profile'); vPay(m[1]); }],
+  [/^#\/orders$/, () => { renderNav('profile'); vOrders(); }],
+  [/^#\/order\/(\d+)$/, (m) => { renderNav('profile'); vOrder(m[1]); }],
+  [/^#\/track$/, () => { renderNav('profile'); vTrackForm(); }],
+  [/^#\/track\/(\d+)$/, (m) => { renderNav('profile'); vTrackForm(); }],
   [/^#\/faq$/, () => { renderNav('profile'); vFaq(); }],
   [/^#\/notif$/, () => { renderNav('profile'); vNotif(); }],
-  [/^#\/wallet$/, () => { renderNav('wallet'); vWallet(); }],
+  [/^#\/wallet$/, () => { renderNav('profile'); vWallet(); }],
   [/^#\/wishlist$/, () => { renderNav('profile'); vWishlist(); }],
   [/^#\/tickets$/, () => { renderNav('profile'); vTickets(); }],
   [/^#\/ticket\/(\d+)$/, (m) => { renderNav('profile'); vTicket(m[1]); }],
