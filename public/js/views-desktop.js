@@ -97,7 +97,7 @@ async function dHome(el) {
       <div class="d-pgrid" id="d-pop">${'<div class="skel" style="height:300px"></div>'.repeat(5)}</div></div>
     <div id="d-flash-slot"></div>
     ${(() => { const r = getRecent(); return r.length ? `<div class="d-sec"><div class="d-sec-head"><h2><span class="dot"></span>🕐 Terakhir Dilihat</h2></div><div class="d-pgrid">${r.slice(0, 5).map((p) => productCard(p)).join('')}</div></div>` : ''; })()}
-    <div class="d-sec"><div class="card" style="display:flex;align-items:center;gap:18px;background:linear-gradient(120deg,#6d28d9,#8b5cf6);color:#fff;border:none">
+    <div class="d-sec"><div class="card" style="display:flex;align-items:center;gap:18px;background:linear-gradient(120deg,#4f46e5,#6d6df2);color:#fff;border:none">
       <div style="font-size:44px">🎟️</div>
       <div class="grow"><div style="font-weight:900;font-size:19px">Kode voucher: BONUS10</div>
       <div style="opacity:.9;font-size:14px">Diskon 10% untuk belanja minimal Rp50.000 — otomatis di checkout.</div></div>

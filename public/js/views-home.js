@@ -1,15 +1,15 @@
 /* ===== PlayTopUp Store — views: home, games, product ===== */
 const CAT_STYLE = {
-  popular: { bg: '#6d28d9', fg: '#fff', icon: '⭐' },
+  popular: { bg: '#4f46e5', fg: '#fff', icon: '⭐' },
   ml: { bg: '#3b82f6', fg: '#fff', icon: '⚔️' },
   genshin: { bg: '#14b8a6', fg: '#fff', icon: '✨' },
   pubg: { bg: '#f59e0b', fg: '#fff', icon: '🪖' },
-  ff: { bg: '#f97316', fg: '#fff', icon: '🔥' },
-  roblox: { bg: '#2563eb', fg: '#fff', icon: '🧱' },
+  ff: { bg: '#f59e0b', fg: '#fff', icon: '🔥' },
+  roblox: { bg: '#6366f1', fg: '#fff', icon: '🧱' },
   steam: { bg: '#1e3a8a', fg: '#fff', icon: '🎮' },
 };
 function catChip(c, active) {
-  const s = CAT_STYLE[c.id] || { bg: '#8b5cf6', fg: '#fff', icon: c.icon || '📦' };
+  const s = CAT_STYLE[c.id] || { bg: '#6d6df2', fg: '#fff', icon: c.icon || '📦' };
   return `<button class="chip cat ${active ? 'active' : ''}" style="${active ? '' : `background:${s.bg};color:${s.fg}`}" onclick="go('#/game/${esc(c.id)}')"><span class="ce">${esc(c.icon || s.icon)}</span>${esc(c.label)}</button>`;
 }
 
