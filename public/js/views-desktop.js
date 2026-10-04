@@ -109,7 +109,7 @@ async function dHome(el) {
       dBannerIdx = 0;
       hero.innerHTML = `
         <div class="d-hero-track" id="d-hero-track">${banners.map((x) => `
-          <div class="d-hero-slide"><img src="${esc(x.image_url)}" alt="Promo" loading="lazy"></div>`).join('')}</div>
+          <div class="d-hero-slide"><img src="${esc(imgUrl(x.image_url))}" alt="Promo" loading="lazy"></div>`).join('')}</div>
         ${banners.length > 1 ? `
         <button class="d-hero-arrow prev" onclick="dBannerMove(-1)">‹</button>
         <button class="d-hero-arrow next" onclick="dBannerMove(1)">›</button>
@@ -122,7 +122,7 @@ async function dHome(el) {
         <div><h1>Top Up Like<br>Never Before.</h1>
         <p>⚡ Instant delivery • 🛡️ 100% Safe • 🕐 24/7 Support</p>
         <button class="btn" style="background:var(--card2);color:var(--ink);padding:14px 34px;font-size:16px" onclick="go('#/games')">Top Up Sekarang →</button></div>
-        <img src="/img/hero.webp" alt="PlayTopUp mascots">
+        <img src="/img/hero.webp?v=2" alt="PlayTopUp mascots">
       </div>`;
     }
   } catch { /* keep skeleton/fallback */ }
@@ -135,7 +135,7 @@ async function dHome(el) {
     const box = document.getElementById('d-cats');
     if (box) box.innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${imgs[c.id] || '/img/steam.webp'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b>${esc(c.icon || '')} ${esc(c.label)}</b>
       </div>`).join('') || `<div class="d-empty">Belum ada kategori.</div>`;
   } catch { const box = document.getElementById('d-cats'); if (box) box.innerHTML = ''; }
@@ -173,7 +173,7 @@ async function dGames(el) {
     const cats = s.categories || [];
     document.getElementById('d-games').innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${D_CAT_IMGS[c.id] || '/img/steam.webp'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${imgUrl(D_CAT_IMGS[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b style="font-size:15px">${esc(c.icon || '')} ${esc(c.label)}</b>
         <div class="muted" style="font-size:12.5px;font-weight:700;margin-top:4px">Top up instan</div>
       </div>`).join('') || `<div class="d-empty">Belum ada game.</div>`;
@@ -222,7 +222,7 @@ async function dProduct(el, id) {
     <div class="d-crumb" style="margin-top:26px"><a href="#/">Home</a> › <a href="#/games">Games</a> › <b>${esc(p.name)}</b></div>
     <div class="d-pd">
       <div class="d-pd-gallery">
-        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(mainImg)}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:var(--card-solid);border-radius:24px">🎮</div>`}</div>
+        <div class="detail-img imgph" style="border-radius:24px">${mainImg ? `<img src="${esc(imgUrl(mainImg))}" alt="${esc(p.name)}" onload="imgLd(this)">` : `<div style="aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;font-size:72px;background:var(--card-solid);border-radius:24px">🎮</div>`}</div>
       </div>
       <div class="d-pd-info">
         <div class="muted" style="font-weight:800;font-size:13.5px;letter-spacing:.4px;text-transform:uppercase">${esc(p.category || '')}</div>
@@ -323,7 +323,7 @@ function dCart(el) {
         </div>
         ${cart.map((it, i) => `
         <div class="d-cart-item" style="padding:14px 0;border-top:1px solid var(--line)">
-          ${it.image_url ? `<div class="imgph" style="border-radius:16px"><img src="${esc(it.image_url)}" alt="" loading="lazy" onload="imgLd(this)" style="width:96px;height:96px;border-radius:16px;object-fit:cover"></div>`
+          ${it.image_url ? `<div class="imgph" style="border-radius:16px"><img src="${esc(imgUrl(it.image_url))}" alt="" loading="lazy" onload="imgLd(this)" style="width:96px;height:96px;border-radius:16px;object-fit:cover"></div>`
             : `<div style="width:96px;height:96px;border-radius:16px;background:var(--purple-soft);display:flex;align-items:center;justify-content:center;font-size:38px;flex:none">🎮</div>`}
           <div class="grow"><div style="font-weight:900;font-size:15.5px">${esc(it.name)}</div>
             ${it.variant_label ? `<div class="muted" style="font-size:13px;font-weight:700">${esc(it.variant_label)}</div>` : ''}

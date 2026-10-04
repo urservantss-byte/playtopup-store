@@ -24,7 +24,7 @@ async function vHome() {
         <div class="ticks"><b>✔</b> Instant • Safe • 24/7 &nbsp; 🛡️ Support</div>
         <button class="btn" onclick="go('#/games')">Explore Deals →</button>
       </div>
-      <img class="mascots" src="/img/hero.webp" alt="PlayTopUp mascots">
+      <img class="mascots" src="/img/hero.webp?v=2" alt="PlayTopUp mascots">
     </div>
     <div class="sec-head"><h2>Categories</h2></div>
     <div class="hscroll" id="cat-row"><div class="skel" style="width:120px;height:52px"></div><div class="skel" style="width:140px;height:52px"></div><div class="skel" style="width:130px;height:52px"></div></div>
@@ -62,7 +62,7 @@ async function vGames() {
     const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
     document.getElementById('games-grid').innerHTML = cats.map((c) => `
       <div class="pcard" onclick="go('#/game/${esc(c.id)}')">
-        <div class="pimg imgph"><img src="${imgs[c.id] || '/img/steam.webp'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)"></div>
+        <div class="pimg imgph"><img src="${imgUrl(imgs[c.id] || '/img/steam.webp')}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)"></div>
         <div class="pbody"><div class="pname">${esc(c.icon || '')} ${esc(c.label)}</div>
         <div class="pvar">Top up instantly</div></div>
       </div>`).join('') || `<div class="empty" style="grid-column:1/-1">No games yet.</div>`;

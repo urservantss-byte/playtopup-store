@@ -7,6 +7,13 @@ function esc(s) {
 function rp(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 }
+/* Cache-buster gambar statis bawaan: paksa browser ambil ulang versi baru,
+   agar gambar yang pernah ke-cache dalam keadaan rusak tidak terus dipakai. */
+const IMG_V = '2';
+function imgUrl(u) {
+  if (!u || typeof u !== 'string') return u;
+  return u.startsWith('/img/') ? u + '?v=' + IMG_V : u;
+}
 function toast(msg, ok) {
   const box = document.getElementById('toasts');
   const el = document.createElement('div');
@@ -61,7 +68,7 @@ function imgLd(el) {
   if (w) w.classList.add('done');
 }
 function productCard(p) {
-  const img = p.image_url ? `<img src="${esc(p.image_url)}" alt="${esc(p.name)}" loading="lazy" onload="imgLd(this)">`
+  const img = p.image_url ? `<img src="${esc(imgUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy" onload="imgLd(this)">`
     : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:44px;background:var(--purple-soft)">🎮</div>`;
   const wished = store.user && window._wishlist && window._wishlist.has(p.id);
   return `
