@@ -26,12 +26,12 @@ if (before > 0) {
 }
 
 const PRODUCTS = [
-  { name: 'Mobile Legends Diamonds', cat: 'ml', img: '/img/ml.png', tags: 'mlbb,moba,diamond', desc: 'Top up Mobile Legends Diamonds instantly. Diamonds are delivered directly to your game account.', vars: [['86 Diamonds', 22000], ['172 Diamonds', 43000], ['344 Diamonds', 86000], ['514 Diamonds', 129000]] },
-  { name: 'Genshin Impact Crystals', cat: 'genshin', img: '/img/genshin.png', tags: 'genshin,rpg,crystal', desc: 'Genesis Crystals for Genshin Impact. Fast delivery, safe & official.', vars: [['60 Genesis Crystals', 16000], ['330 Genesis Crystals', 75000], ['1090 Genesis Crystals', 240000], ['1980 Genesis Crystals', 450000]] },
-  { name: 'PUBG Mobile UC', cat: 'pubg', img: '/img/pubg.png', tags: 'pubg,fps,uc', desc: 'Unknown Cash (UC) for PUBG Mobile. Instant delivery 24/7.', vars: [['60 UC', 15000], ['325 UC', 75000], ['660 UC', 150000]] },
-  { name: 'Free Fire Diamonds', cat: 'ff', img: '/img/ff.png', tags: 'freefire,ff,diamond', desc: 'Free Fire Diamonds top up. Instant process, 100% safe.', vars: [['100 Diamonds', 15000], ['310 Diamonds', 45000], ['520 Diamonds', 75000], ['1060 Diamonds', 150000]] },
-  { name: 'Roblox Robux', cat: 'roblox', img: '/img/roblox.png', tags: 'roblox,robux', desc: 'Robux for Roblox. Delivered fast to your account.', vars: [['80 Robux', 20000], ['400 Robux', 95000], ['800 Robux', 185000]] },
-  { name: 'Steam Wallet IDR', cat: 'steam', img: '/img/steam.png', tags: 'steam,wallet,pc', desc: 'Steam Wallet code IDR denomination. Redeem instantly.', vars: [['IDR 60.000', 68000], ['IDR 120.000', 134000], ['IDR 250.000', 278000]] },
+  { name: 'Mobile Legends Diamonds', cat: 'ml', img: '/img/ml.webp', tags: 'mlbb,moba,diamond', desc: 'Top up Mobile Legends Diamonds instantly. Diamonds are delivered directly to your game account.', vars: [['86 Diamonds', 22000], ['172 Diamonds', 43000], ['344 Diamonds', 86000], ['514 Diamonds', 129000]] },
+  { name: 'Genshin Impact Crystals', cat: 'genshin', img: '/img/genshin.webp', tags: 'genshin,rpg,crystal', desc: 'Genesis Crystals for Genshin Impact. Fast delivery, safe & official.', vars: [['60 Genesis Crystals', 16000], ['330 Genesis Crystals', 75000], ['1090 Genesis Crystals', 240000], ['1980 Genesis Crystals', 450000]] },
+  { name: 'PUBG Mobile UC', cat: 'pubg', img: '/img/pubg.webp', tags: 'pubg,fps,uc', desc: 'Unknown Cash (UC) for PUBG Mobile. Instant delivery 24/7.', vars: [['60 UC', 15000], ['325 UC', 75000], ['660 UC', 150000]] },
+  { name: 'Free Fire Diamonds', cat: 'ff', img: '/img/ff.webp', tags: 'freefire,ff,diamond', desc: 'Free Fire Diamonds top up. Instant process, 100% safe.', vars: [['100 Diamonds', 15000], ['310 Diamonds', 45000], ['520 Diamonds', 75000], ['1060 Diamonds', 150000]] },
+  { name: 'Roblox Robux', cat: 'roblox', img: '/img/roblox.webp', tags: 'roblox,robux', desc: 'Robux for Roblox. Delivered fast to your account.', vars: [['80 Robux', 20000], ['400 Robux', 95000], ['800 Robux', 185000]] },
+  { name: 'Steam Wallet IDR', cat: 'steam', img: '/img/steam.webp', tags: 'steam,wallet,pc', desc: 'Steam Wallet code IDR denomination. Redeem instantly.', vars: [['IDR 60.000', 68000], ['IDR 120.000', 134000], ['IDR 250.000', 278000]] },
 ];
 
 const insP = db.prepare('INSERT INTO products (name,description,price,image_url,category,tags,stock) VALUES (?,?,?,?,?,?,?)');
@@ -49,7 +49,7 @@ console.log('products:', PRODUCTS.length);
 // banner hero
 db.prepare('DELETE FROM banners').run();
 db.prepare("INSERT INTO banners (image_url,link_url,sort_order,active) VALUES (?,?,0,1)")
-  .run('/img/hero.png', '#/games');
+  .run('/img/hero.webp', '#/games');
 console.log('banner ok');
 
 // voucher promo

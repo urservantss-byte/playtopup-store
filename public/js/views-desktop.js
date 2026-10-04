@@ -122,7 +122,7 @@ async function dHome(el) {
         <div><h1>Top Up Like<br>Never Before.</h1>
         <p>⚡ Instant delivery • 🛡️ 100% Safe • 🕐 24/7 Support</p>
         <button class="btn" style="background:#fff;color:var(--purple);padding:14px 34px;font-size:16px" onclick="go('#/games')">Top Up Sekarang →</button></div>
-        <img src="/img/hero.png" alt="PlayTopUp mascots">
+        <img src="/img/hero.webp" alt="PlayTopUp mascots">
       </div>`;
     }
   } catch { /* keep skeleton/fallback */ }
@@ -131,11 +131,11 @@ async function dHome(el) {
   try {
     const s = await api.get('/api/settings/public');
     const cats = s.categories || [];
-    const imgs = { ml: '/img/ml.png', genshin: '/img/genshin.png', pubg: '/img/pubg.png', ff: '/img/ff.png', roblox: '/img/roblox.png', steam: '/img/steam.png' };
+    const imgs = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
     const box = document.getElementById('d-cats');
     if (box) box.innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${imgs[c.id] || '/img/steam.png'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${imgs[c.id] || '/img/steam.webp'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:74px;height:74px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b>${esc(c.icon || '')} ${esc(c.label)}</b>
       </div>`).join('') || `<div class="d-empty">Belum ada kategori.</div>`;
   } catch { const box = document.getElementById('d-cats'); if (box) box.innerHTML = ''; }
@@ -163,7 +163,7 @@ function dBannerGo(i) {
 }
 
 /* ---------- GAMES / GAME / SEARCH desktop ---------- */
-const D_CAT_IMGS = { ml: '/img/ml.png', genshin: '/img/genshin.png', pubg: '/img/pubg.png', ff: '/img/ff.png', roblox: '/img/roblox.png', steam: '/img/steam.png' };
+const D_CAT_IMGS = { ml: '/img/ml.webp', genshin: '/img/genshin.webp', pubg: '/img/pubg.webp', ff: '/img/ff.webp', roblox: '/img/roblox.webp', steam: '/img/steam.webp' };
 
 async function dGames(el) {
   el.innerHTML = `<div class="d-sec"><div class="d-sec-head"><h2><span class="dot"></span>Semua Game</h2></div>
@@ -173,7 +173,7 @@ async function dGames(el) {
     const cats = s.categories || [];
     document.getElementById('d-games').innerHTML = cats.map((c) => `
       <div class="d-cat" onclick="go('#/game/${esc(c.id)}')">
-        <div class="imgph" style="border-radius:18px"><img src="${D_CAT_IMGS[c.id] || '/img/steam.png'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
+        <div class="imgph" style="border-radius:18px"><img src="${D_CAT_IMGS[c.id] || '/img/steam.webp'}" alt="${esc(c.label)}" loading="lazy" onload="imgLd(this)" style="width:88px;height:88px;object-fit:cover;border-radius:18px;margin-bottom:10px"></div>
         <b style="font-size:15px">${esc(c.icon || '')} ${esc(c.label)}</b>
         <div class="muted" style="font-size:12.5px;font-weight:700;margin-top:4px">Top up instan</div>
       </div>`).join('') || `<div class="d-empty">Belum ada game.</div>`;

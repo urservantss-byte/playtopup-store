@@ -96,7 +96,7 @@ async function admProductForm(id) {
     <div class="field grow"><label>Discount %</label><input id="ap-disc" type="number" value="${p.discount || 0}"></div></div>
     <div class="field"><label>Tags (comma separated)</label><input id="ap-tags" value="${esc(p.tags || '')}"></div>
     <div class="field"><label>Description</label><textarea id="ap-desc" rows="2">${esc(p.description || '')}</textarea></div>
-    <div class="field"><label>Image URL</label><input id="ap-img" value="${esc(p.image_url || '')}" placeholder="/img/ml.png"></div>
+    <div class="field"><label>Image URL</label><input id="ap-img" value="${esc(p.image_url || '')}" placeholder="/img/ml.webp"></div>
     <button class="btn block purple" onclick="admSaveProduct(${id || 0})">Save</button>
     ${id ? `<div style="height:8px"></div><button class="btn block line" onclick="admProductVariants(${id})">Manage Variants (denominations)</button>
     <div style="height:8px"></div><button class="btn block line" style="color:#b91c1c" onclick="admDelProduct(${id})">Delete Product</button>` : ''}`);
